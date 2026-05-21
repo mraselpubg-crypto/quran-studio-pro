@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   buildAllPages,
+  buildAllPagesChunked,
   buildPagesFromVerses,
   loadAllVerses,
   pagesSync,
