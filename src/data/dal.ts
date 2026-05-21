@@ -106,11 +106,21 @@ export class BrowserDAL implements QuranDAL {
 }
 
 /**
- * Singleton DAL instance.
- * In the future: replace with ElectronDAL when running in Electron.
+ * Singleton DAL instance — auto-selects ElectronDAL when running inside
+ * Electron (preload.cjs exposed window.electronAPI), otherwise BrowserDAL.
  *
  * Usage:
  *   import { dal } from "@/data/dal";
  *   const page = await dal.getPage("vpage-1");
  */
-export const dal: QuranDAL = new BrowserDAL();
+function pickDAL(): QuranDAL {
+  if (typeof window !== "undefined" && (window as any).electronAPI?.isElectron) {
+    // Lazy require keeps Electron-only types out of the SSR / Worker bundle.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ElectronDAL } = require("./dal.electron") as typeof import("./dal.electron");
+    return new ElectronDAL((window as any).electronAPI);
+  }
+  return new BrowserDAL();
+}
+
+export const dal: QuranDAL = pickDAL();
