@@ -289,7 +289,7 @@ export function captureHistory(
     if (after === FIELD_DEFAULTS[field]) return;
   }
 
-  void import("./overridesStore").then(({ useOverridesStore }) => {
+  void import("./overridesStore").then(async ({ useOverridesStore }) => {
     void useOverridesStore; // touch import (ensures module is loaded)
 
     const patch: HistoryPatch = {
