@@ -249,6 +249,8 @@ export function TopBar({ totalPages, totalAyat }: { totalPages: number; totalAya
           </div>
         </div>
       )}
+
+      <QuickPublishModal open={publishOpen} onClose={() => setPublishOpen(false)} />
     </>
   );
 }
