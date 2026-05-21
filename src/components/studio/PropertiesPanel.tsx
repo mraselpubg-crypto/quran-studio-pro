@@ -236,35 +236,39 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
   const setGlobal = useOverridesStore((s) => s.setGlobal);
   const scope = useEditorStore((s) => s.scope);
   const selection = useEditorStore((s) => s.selection);
-  const localOverride = useOverridesStore((s) =>
-    selection ? s.local[selection.key] : undefined,
-  );
   const [dragging, setDragging] = useState<number | null>(null);
 
+  const selKey = selection?.key ?? null;
+  const localOverride = useOverridesStore((s) => (selKey ? s.local[selKey] : undefined));
   const localValue =
     localField && localOverride
       ? (localOverride[localField] as number | undefined)
       : undefined;
 
-  const useLocal = scope !== "global" && !!selection && !!localField;
-  const effectiveStored = useLocal
+  const isLocalScope = scope !== "global" && selKey !== null && localField !== undefined;
+
+  const effectiveValue = isLocalScope
     ? (localValue ?? stored ?? fallback)
     : (stored ?? fallback);
-  const display = dragging ?? effectiveStored;
-  const isOverridden = useLocal ? localValue !== undefined : stored !== undefined;
+  const display = dragging ?? effectiveValue;
+
+  const isOverridden = isLocalScope ? localValue !== undefined : stored !== undefined;
 
   const applyValue = (v: number) => {
-    if (!useLocal) {
+    setDragging(null);
+    if (!isLocalScope) {
       setGlobal(k, v);
     } else {
-      void patchScoped(selection!.key, { [localField!]: v } as never, scope);
+      void patchScoped(selKey!, { [localField!]: v } as never, scope);
     }
   };
+
   const resetValue = () => {
-    if (!useLocal) {
+    setDragging(null);
+    if (!isLocalScope) {
       setGlobal(k, undefined);
     } else {
-      void patchScoped(selection!.key, { [localField!]: undefined } as never, scope);
+      void patchScoped(selKey!, { [localField!]: undefined } as never, scope);
     }
   };
 
@@ -274,11 +278,11 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
         <span className="text-[11px] font-medium text-neutral-400">{label}</span>
         <div className="flex items-center gap-1">
           <input type="number" value={display}
-            onChange={(e) => { const v = Number(e.target.value); setDragging(null); applyValue(v); }}
+            onChange={(e) => applyValue(Number(e.target.value))}
             className="w-12 rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-right text-[11px] font-mono outline-none focus:border-amber-400"
             style={{ color: isOverridden ? color : "#737373" }} step={1} min={min} max={max} />
           {isOverridden && (
-            <button onClick={() => { resetValue(); setDragging(null); }} className="ml-1 text-neutral-600 hover:text-amber-400" title="Reset">
+            <button onClick={resetValue} className="ml-1 text-neutral-600 hover:text-amber-400" title="Reset">
               <RotateCcw className="h-3 w-3" />
             </button>
           )}
@@ -286,13 +290,14 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
       </div>
       <input type="range" min={min} max={max} value={display}
         onInput={(e) => setDragging(Number((e.target as HTMLInputElement).value))}
-        onChange={(e) => { const v = Number((e.target as HTMLInputElement).value); setDragging(null); applyValue(v); }}
+        onChange={(e) => applyValue(Number((e.target as HTMLInputElement).value))}
         className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
         style={{ accentColor: color, background: `linear-gradient(to right, ${color} ${((display - min) / (max - min)) * 100}%, #262626 0%)` }}
       />
     </div>
   );
 }
+
 
 
 function LocalFields({ color }: { color: string }) {
@@ -404,11 +409,18 @@ function NumInput({
 
 function CharacterPanel({ selKey }: { selKey: string }) {
   const localMap = useOverridesStore((s) => s.local);
+  const globalArabicFontPx = useOverridesStore((s) => s.global.arabicFontPx);
+  const globalBanglaFontPx = useOverridesStore((s) => s.global.banglaFontPx);
   const patchLocal = useOverridesStore((s) => s.patchLocal);
   const scope = useEditorStore((s) => s.scope);
   const ov = localMap[selKey] ?? {};
 
-  const fontPx   = ov.fontPx   ?? 0;
+  const isArabicLayer = selKey.includes(":arabic");
+  const globalFontFallback = isArabicLayer
+    ? (globalArabicFontPx ?? ARABIC_FONT_PX)
+    : (globalBanglaFontPx ?? BANGLA_FONT_PX);
+
+  const fontPx   = ov.fontPx   ?? globalFontFallback;
   const leading  = ov.leading  ?? 0;
   const tracking = ov.tracking ?? 0;
   const vScale   = ov.vScale   ?? 100;
@@ -417,6 +429,7 @@ function CharacterPanel({ selKey }: { selKey: string }) {
   const align    = ov.align    ?? "justify";
 
   const set = (k: string, v: number | string) => { void patchScoped(selKey, { [k]: v } as never, scope); };
+
 
   const ALIGN_OPTIONS = [
     { value: "left",    icon: AlignLeft,    label: "বাম" },
