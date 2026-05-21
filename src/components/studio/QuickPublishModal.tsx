@@ -33,6 +33,17 @@ export function QuickPublishModal({ open, onClose }: Props) {
     } catch {
       // ignore
     }
+    // Mark out-of-range artboards so the print stylesheet hides them.
+    const allBoards = document.querySelectorAll<HTMLElement>('[data-artboard="true"]');
+    allBoards.forEach((el) => {
+      const n = Number(el.getAttribute("data-page-num") ?? 0);
+      el.dataset.printSkip = n < fromPage || n > toPage ? "true" : "false";
+    });
+    const cleanup = () => {
+      allBoards.forEach((el) => { delete el.dataset.printSkip; });
+    };
+    window.addEventListener("afterprint", cleanup, { once: true });
+
     setTimeout(() => {
       window.print();
       setExporting(false);
