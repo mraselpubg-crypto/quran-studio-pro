@@ -265,6 +265,39 @@ export async function patchScoped(
     store.patchLocal(representativeKey, patch);
     return;
   }
+
+  // Capture before-value from the REPRESENTATIVE key so the single synthetic
+  // history entry reflects what the user sees in the inspector.
+  const patchKeys = Object.keys(patch);
+  const mainField = patchKeys[0];
+  const beforeRep = mainField
+    ? (store.local[representativeKey] as Record<string, unknown> | undefined)?.[mainField]
+    : undefined;
+  const afterRep = mainField ? (patch as Record<string, unknown>)[mainField] : undefined;
+
   const keys = await getScopedLayerKeys(representativeKey, scope);
-  for (const k of keys) store.patchLocal(k, patch);
+
+  // Suppress per-key captureHistory firings during fan-out so we emit ONE entry
+  // with the real scope at the end.
+  const { beginSilent, endSilent, captureHistory } = await import("./historyStore");
+  beginSilent();
+  try {
+    for (const k of keys) useOverridesStore.getState().patchLocal(k, patch);
+  } finally {
+    endSilent();
+  }
+
+  if (mainField && beforeRep !== afterRep && !_restoringHistory) {
+    const parsed = parseLayerKey(representativeKey);
+    captureHistory(
+      mainField,
+      beforeRep,
+      afterRep,
+      scope,
+      parsed?.pageId,
+      parsed?.rowIndex,
+      representativeKey,
+    );
+  }
 }
+
