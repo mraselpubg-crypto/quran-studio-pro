@@ -1,18 +1,16 @@
-# Plan #4 — Critical Bug Fix: Scope Fan-out + Font Size Display
+# Plan #5 — Fix History Chip + Quick Publish Modal
 
 ## Changes
-1. **`src/components/studio/PropertiesPanel.tsx` → `DSlider`**: refactored with explicit `selKey` and `isLocalScope` checks; `applyValue`/`resetValue` call `setDragging(null)` first, then route to `setGlobal` (no selection / global scope) or `patchScoped(selKey, …, scope)` (local/page/surah).
-2. **`CharacterPanel`**: `fontPx` now falls back to global `arabicFontPx`/`banglaFontPx` (or `ARABIC_FONT_PX`/`BANGLA_FONT_PX`) when no local override exists — fixes "845" display when value should be 45/50.
+1. **`src/components/studio/CanvasToolbar.tsx`** — `HistoryItem` now renders `scopeLabel` chip (📍 পেজ N · সারি M) when available, falling back to raw pageId.
+2. **`src/components/studio/QuickPublishModal.tsx`** — modal is now portaled into `document.body` via `createPortal`, so no parent z-index/overflow can hide it when ⚡ is clicked.
 
 ## Verification
 - `npx tsc --noEmit` clean.
-- "সাধারণ" scope: single layer affected.
-- "পেজ" scope: only that page's matching layers patched via `patchScoped` fan-out.
-- "সূরা" scope: only that surah's pages.
-- "সকল" scope: all pages.
-- CharacterPanel Font Size shows correct value (not 845).
+- History entries from page/general scope display scope chip in both PropertiesPanel HistoryTab and CanvasToolbar history dropdown.
+- ⚡ Quick Publish button opens modal reliably; backdrop & X close it; print respects page range (from Plan #3).
 
 ## Previous plans (archive)
 - Plan #1: প্রয়োগ
 - Plan #2: History Panel + Quick Publish Modal
-- Plan #3: Audit fixes — scope-aware history fan-out + scope-aware scopeLabel + print isolation
+- Plan #3: Audit fixes — scope-aware fan-out + scopeLabel + print isolation
+- Plan #4: Scope fan-out routing + CharacterPanel fontPx fallback
