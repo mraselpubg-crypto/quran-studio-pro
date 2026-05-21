@@ -9,7 +9,11 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "electron:dump-pages": "tsx scripts/dump-pages.mjs > scripts/pages-dump.json",
+    "electron:build-db": "node scripts/build-sqlite.cjs",
+    "electron:dev": "ELECTRON_RENDERER_URL=http://localhost:8080 electron electron/main.cjs",
+    "electron:package": "vite build && electron-packager . StudioAlQalam --overwrite --out=electron-release --ignore='^/src' --ignore='^/public' --ignore='^/electron-release'"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
