@@ -202,7 +202,7 @@ export function CanvasToolbar({
       {/* ── Center ── */}
       {editMode ? (
         <div className="flex items-center gap-1">
-          <span className="mr-1 text-[10px] uppercase tracking-wider text-neutral-600">প্রভাব</span>
+          <span className="mr-1 text-[10px] uppercase tracking-wider text-neutral-600">প্রয়োগ</span>
           {SCOPES.map((s) => (
             <button
               key={s}
