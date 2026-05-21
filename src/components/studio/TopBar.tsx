@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BookOpen, CheckCircle2, FileDown, FileImage, HelpCircle, Keyboard, Layers, Sparkles, X, Zap } from "lucide-react";
 import { useEditorStore } from "@/state/editorStore";
 import { useHistoryStore } from "@/state/historyStore";
+import { QuickPublishModal } from "./QuickPublishModal";
 import { toast } from "sonner";
 
 // ── Keyboard shortcuts reference ──────────────────────────────────────
