@@ -191,38 +191,47 @@ export const useReflowStore = create<ReflowState>((set, get) => ({
     };
     const sig = computeSignature();
 
-    // Mark as rebuilding so UI can show a subtle spinner
+    // Cancel any in-flight rebuild so only the latest one commits.
+    currentRebuildAbort?.abort();
+    const abort = new AbortController();
+    currentRebuildAbort = abort;
+
     set({ rebuilding: true });
 
-    // Use requestIdleCallback when available, otherwise fall back to setTimeout(0)
-    const scheduleIdle =
-      typeof requestIdleCallback !== "undefined"
-        ? (cb: IdleRequestCallback) => requestIdleCallback(cb, { timeout: 500 })
-        : (cb: IdleRequestCallback) =>
-            setTimeout(
-              () => cb({ timeRemaining: () => 50, didTimeout: false } as IdleDeadline),
-              0,
-            );
-
-    // Run the full buildAllPages synchronously inside an idle callback
-    // (it's ~1-3ms for typical corpus sizes, acceptable in an idle slot)
-    scheduleIdle(() => {
-      // If signature changed again while we were waiting, skip this stale rebuild
-      if (sig !== computeSignature()) {
-        set({ rebuilding: false });
-        return;
-      }
-
-      const pages = buildAllPages(opts);
-      set({
-        pages,
-        distribution: computeDistribution(pages),
-        signature: sig,
-        rebuilding: false,
+    buildAllPagesChunked(
+      opts,
+      (p) => {
+        if (abort.signal.aborted) return;
+        set({
+          buildProgress: {
+            label: p.label,
+            pct: Math.max(1, Math.min(99, Math.round((p.done / p.total) * 100))),
+          },
+        });
+      },
+      abort.signal,
+    )
+      .then((pages) => {
+        if (abort.signal.aborted) return;
+        if (sig !== computeSignature()) return; // stale — newer rebuild will commit
+        set({
+          pages,
+          distribution: computeDistribution(pages),
+          signature: sig,
+          rebuilding: false,
+          buildProgress: null,
+        });
+      })
+      .catch((e) => {
+        if (e?.name === "AbortError") return;
+        // eslint-disable-next-line no-console
+        console.error("[reflow] rebuild failed", e);
+        set({ rebuilding: false, buildProgress: null });
       });
-    });
   },
 }));
+
+let currentRebuildAbort: AbortController | null = null;
 
 /**
  * Subscribe overrides → debounced rebuild (400ms idle window).
