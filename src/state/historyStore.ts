@@ -26,6 +26,8 @@ export type HistoryEntry = {
   label: string;
   labelBn: string;
   scope: SelectionScope;
+  /** Human-readable scope context, e.g. "পেজ ৫ · সারি ৩" */
+  scopeLabel?: string;
   pageId?: string;
   rowIndex?: number;
   /** Which layer key was changed (e.g. layer:pageId:rowIndex:arabic) */
@@ -239,8 +241,17 @@ export const useHistoryStore = create<HistoryState>()(
           const mapped: SelectionScope =
             sc === "row" ? "general" : sc === "para" ? "global" : (sc as SelectionScope);
 
+          const deriveScopeLabel = (pid?: string, ri?: number) => {
+            if (!pid) return "";
+            let s = `পেজ ${pid.replace(/^vpage-/, "")}`;
+            if (ri !== undefined) s += ` · সারি ${ri + 1}`;
+            return s;
+          };
+
           // If this entry already has a patch (v3 format), keep it
-          if (e.patch) return { ...e, scope: mapped };
+          if (e.patch) {
+            return { ...e, scope: mapped, scopeLabel: e.scopeLabel ?? deriveScopeLabel(e.pageId, e.rowIndex) };
+          }
 
           // Migrate from v2 full-snapshot format: reconstruct a patch from field/before/after
           const patch: HistoryPatch = {
@@ -252,7 +263,7 @@ export const useHistoryStore = create<HistoryState>()(
           // Strip old snapshot fields to save memory
           const { beforeSnapshot: _b, snapshot: _s, ...rest } = e as LegacyHistoryEntry;
           void _b; void _s;
-          return { ...rest, scope: mapped, patch };
+          return { ...rest, scope: mapped, scopeLabel: deriveScopeLabel(e.pageId, e.rowIndex), patch };
         });
         return { ...current, entries: fixed };
       },
@@ -302,10 +313,18 @@ export function captureHistory(
       label = `${field}: ${beforeStr} → ${afterStr}`;
     }
 
+    let scopeLabel = "";
+    if (pageId) {
+      const pageNum = pageId.replace(/^vpage-/, "");
+      scopeLabel = `পেজ ${pageNum}`;
+      if (rowIndex !== undefined) scopeLabel += ` · সারি ${rowIndex + 1}`;
+    }
+
     useHistoryStore.getState().push({
       label,
       labelBn,
       scope,
+      scopeLabel,
       pageId,
       rowIndex,
       layerKey,

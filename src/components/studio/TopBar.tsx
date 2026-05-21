@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BookOpen, CheckCircle2, FileDown, FileImage, HelpCircle, Keyboard, Layers, Sparkles, X, Zap } from "lucide-react";
 import { useEditorStore } from "@/state/editorStore";
 import { useHistoryStore } from "@/state/historyStore";
+import { QuickPublishModal } from "./QuickPublishModal";
 import { toast } from "sonner";
 
 // ── Keyboard shortcuts reference ──────────────────────────────────────
@@ -58,6 +59,7 @@ export function TopBar({ totalPages, totalAyat }: { totalPages: number; totalAya
   const editMode = useEditorStore((s) => s.editMode);
   const setEditMode = useEditorStore((s) => s.setEditMode);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
 
   const entriesCount = useHistoryStore((s) => s.entries.length);
   const initialEntriesRef = useRef(entriesCount);
@@ -187,6 +189,7 @@ export function TopBar({ totalPages, totalAyat }: { totalPages: number; totalAya
 
           <button
             id="btn-quick-publish"
+            onClick={() => setPublishOpen(true)}
             title="Quick publish"
             className="grid h-7 w-7 place-items-center rounded-lg border border-neutral-800 bg-neutral-900 text-neutral-400 transition-colors hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
           >
@@ -246,6 +249,8 @@ export function TopBar({ totalPages, totalAyat }: { totalPages: number; totalAya
           </div>
         </div>
       )}
+
+      <QuickPublishModal open={publishOpen} onClose={() => setPublishOpen(false)} />
     </>
   );
 }

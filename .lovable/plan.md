@@ -1,81 +1,71 @@
-# Studio Al-Qalam — Import + প্রয়োগ Refactor Plan
+# Plan #2 — History Panel উন্নতি + Quick Publish Modal
 
-The repo `ohidgazi00003-gif/QuranMakerV3` is now public and cloned to `/tmp/qm`. The current sandbox is an empty TanStack Start template, so first I'll import the full codebase, then apply your "প্রয়োগ সিস্টেম পুনর্গঠন" plan exactly as specified.
+(Plan #1 ছিল "প্রয়োগ সিস্টেম পুনর্গঠন" — সম্পন্ন।)
 
-## Step 0 — Import the codebase into this Lovable project
+## A. History Panel — scopeLabel
 
-Copy from `/tmp/qm` → project root:
-- `src/` (full), `tests/`, `public/`
-- `package.json`, `tsconfig.json`, `vite.config.ts`, `wrangler.jsonc`, `components.json`, `eslint.config.js`, `bunfig.toml`
-- `CODEBASE_OVERVIEW.md`, `AGENT_PROMPT.md` (reference)
-
-Skip: `.git`, `node_modules`, `playwright-report`, `test-results`, screenshots, `.bat` scripts.
-
-Then `bun install` so `react-window`, `zustand`, etc. resolve. Live preview will run automatically (Lovable manages the dev server — no `npm run dev` / port 8080 needed).
-
-Sanity gate: `npx tsc --noEmit` → fix any blocking errors (incl. the known `PageList.tsx` react-window v2 import + add `"skipLibCheck": true` to `tsconfig.json`) so the preview boots.
-
-## Step 1 — `src/lib/textReflow.ts` (Critical)
-- Extend `ReflowOptions` with optional `surahPageIds?: string[]`.
-- In `reflowFrom()`, derive `targetPages = surahPageIds ? allPages.filter(p => surahPageIds.includes(p.id)) : allPages` and iterate `targetPages` instead of `allPages`. Everything else unchanged.
-
-## Step 2 — `src/components/studio/FabricLines.tsx` (Critical)
-
-2ক — Type Tool click → setSelection
-- On the Arabic band `<div>` add `onClick={isTypeTool ? (e)=>{ e.stopPropagation(); useEditorStore.getState().setSelection({kind:"layer", key:aLk, pageId, rowIndex:i, layerKind:"arabic"}); } : undefined}`.
-- Same for Bangla band with `bLk` / `"bangla"`.
-
-2খ + 2গ — Surah-bounded reflow
-- In `InlineTextEditor` (and in `checkOverflow()` call path), compute:
+### A1. `src/state/historyStore.ts`
+- `HistoryEntry` type-এ optional `scopeLabel?: string` field যোগ।
+- `captureHistory()`-এ:
+  ```ts
+  let scopeLabel = "";
+  if (pageId) {
+    const pageNum = pageId.replace(/^vpage-/, "");
+    scopeLabel = `পেজ ${pageNum}`;
+    if (rowIndex !== undefined) scopeLabel += ` · সারি ${rowIndex + 1}`;
+  }
   ```
-  const dist = useReflowStore.getState().distribution;
-  const srcSurah = dist.find(d => d.pageId === pageId)?.surah ?? 0;
-  const surahPageIds = srcSurah > 0
-    ? dist.filter(d => d.surah === srcSurah).map(d => d.pageId)
-    : undefined;
+  এবং `useHistoryStore.getState().push({...})` payload-এ `scopeLabel` pass।
+- Persist migration (`merge`)-এ legacy entry-গুলোর জন্য `scopeLabel` reconstruct: যদি `e.pageId` থাকে একই formula দিয়ে derive; না থাকলে `""`।
+
+### A2. `src/components/studio/PropertiesPanel.tsx` (HistoryTab, lines 180-201)
+- `relativeTime(entry.ts)` span-এর আগে conditional চিপ:
+  ```tsx
+  {entry.scopeLabel && (
+    <span className="rounded-sm bg-neutral-800 px-1.5 py-0.5 text-[9px] text-neutral-400">
+      {entry.scopeLabel}
+    </span>
+  )}
   ```
-- Pass `surahPageIds` into every `reflowFrom({...})` call (Enter handler + overflow check). Encapsulate inside `getReflowBase()` as you specified in Note 3 so all call sites pick it up.
+- Header row layout: scope badge (বাম) | {scopeLabel chip + relativeTime} (ডান, `flex items-center gap-1.5`)।
 
-## Step 3 — `src/components/studio/PropertiesPanel.tsx` (Critical)
+কোনো restore-logic পরিবর্তন নেই; existing `restoreTo()` অপরিবর্তিত (perf-optimization scope বাইরে)।
 
-3ক/3খ — Scope-aware `DSlider`
-- New signature: `DSlider({ k, localField?, label, min, max, fallback, color })`.
-- Inside:
-  - Read `scope` + `selection` from `useEditorStore`, and `localOverride = s.local[selection.key]` from `useOverridesStore`.
-  - `localValue = localField ? localOverride?.[localField] : undefined`.
-  - `effectiveStored = (scope !== "global" && selection && localField) ? (localValue ?? stored ?? fallback) : (stored ?? fallback)`.
-  - `applyValue(v)`: if `scope === "global" || !selection || !localField` → `setGlobal(k, v)`; else `void patchScoped(selection.key, { [localField]: v }, scope)`.
-  - `resetValue()`: same branching with `undefined`.
-  - `isOverridden`: based on `localValue` when scope-local, else on `stored`.
+## B. Quick Publish Modal
 
-3গ — Pass `localField` only on size sliders
-- Arabic/Bangla/Symbol font-size sliders: `localField="fontPx"`.
-- Y-offset sliders: omit `localField` (stay global-only, per Note 2).
+### B1. নতুন `src/components/studio/QuickPublishModal.tsx`
+- Props: `{ open: boolean; onClose: () => void }`.
+- State: `fromPage`, `toPage` (init `1` ও `totalPages`), `exporting`.
+- `totalPages = useReflowStore(s => s.pages.length)`.
+- Backdrop click + X button → `onClose()`.
+- "সব পেজ" / "প্রথম ৩০" quick-select buttons (৩০ > totalPages হলে clamp)।
+- `handlePrint()`:
+  - `localStorage.setItem("print-range", JSON.stringify({ from, to }))`
+  - `setExporting(true)` → `setTimeout(() => { window.print(); setExporting(false); onClose(); }, 200)`.
+- Dark theme, amber accent — TopBar modal style matched।
+- Inputs: `type="number"`, `min={1}`, `max={totalPages}`, clamp on change।
+- Disabled state: `exporting || fromPage > toPage || totalPages === 0`।
 
-3ঘ — Remove `RowDetailSection`
-- Delete the `{selection && (scope === "page" || scope === "general") && (…RowDetailSection…)}` block and the function itself.
+### B2. `src/components/studio/TopBar.tsx`
+- Imports যোগ: `useState` (যদি না থাকে) + `QuickPublishModal`।
+- Component-এ: `const [publishOpen, setPublishOpen] = useState(false);`
+- Line 188-194 button-এ `onClick={() => setPublishOpen(true)}`।
+- Header close-এর পর: `<QuickPublishModal open={publishOpen} onClose={() => setPublishOpen(false)} />`।
 
-3 (label) — `"প্রভাব স্তর (Scope)"` → `"প্রয়োগ স্তর"`.
+(Print CSS `@media print` কোনো বিদ্যমান artboard-only style এই plan-এ নেই — `window.print()` browser default behavior ব্যবহার হবে; প্রকৃত page-range filter পরবর্তী plan-এ। এই plan শুধু modal UI + handler wiring।)
 
-## Step 4 — `src/components/studio/CanvasToolbar.tsx`
-- Line ~205: `প্রভাব` → `প্রয়োগ`.
+## C. যাচাই
+1. `npx tsc --noEmit` → 0 errors।
+2. Preview: History tab-এ পেজ-scoped change করলে "পেজ N · সারি M" chip দেখায়।
+3. TopBar ⚡ ক্লিক → modal খোলে; range edit → "PDF/প্রিন্ট" → browser print dialog।
+4. Backdrop / X ক্লিক → modal বন্ধ।
 
-## Step 5 — `src/components/studio/Artboard.tsx` (Crash fix)
-- Move `useFont()` to top-level (never conditional).
-- Replace `useFont()` indirection where needed with `const fontCtx = useContext(FontContext); const arabicFamily = fontCtx?.activeFamily ?? "'Excellent Arabic', serif";` so pages rendered outside the provider don't crash.
+## D. Plan archival নিয়ম
+এই plan execute করার পর `.lovable/plan.md`-এ এই plan-এর content overwrite করে রাখা হবে (user instruction: "every time after execution add in codebase your last plan")। ভবিষ্যতের প্রতিটি plan execute-এর পরেও একই কাজ।
 
-## Step 6 — `src/state/overridesStore.ts`
-- No code change. Verified `getScopedLayerKeys` already returns `[representativeKey]` for `"general"`. Note in PR description only.
-
-## Verification
-After each step: `npx tsc --noEmit` clean. Then in the live preview:
-- Type Tool → click Arabic/Bangla band → text becomes editable (Step 2ক).
-- Edit causing overflow → words shift only within the same surah's pages (Steps 1 + 2খ/গ).
-- Scope = "সাধারণ"/"পেজ"/"সূরা" + Arabic font-size slider → only that scope's layers change, global stays untouched; scope = "global" still updates everywhere (Step 3).
-- Toolbar reads "প্রয়োগ"; Properties panel reads "প্রয়োগ স্তর" (Step 4 + 3 label).
-- Navigate through pages — no FontContext crash (Step 5).
-
-## Technical notes
-- `react-window` v2 renamed exports; PageList fix uses whatever the installed `.d.ts` actually exports and inlines `RowComponentProps<T>` if missing.
-- `html2canvas` / `bun add` work fine for later PNG-export work; out of scope for this plan.
-- `patchScoped` runs through the existing `getScopedLayerKeys` fan-out — no store changes needed for "general"/"page"/"surah" to map to the right layer set when the slider passes `localField:"fontPx"`.
+## Files touched
+- `src/state/historyStore.ts` (edit)
+- `src/components/studio/PropertiesPanel.tsx` (edit, HistoryTab only)
+- `src/components/studio/QuickPublishModal.tsx` (new)
+- `src/components/studio/TopBar.tsx` (edit, ⚡ button + modal mount)
+- `.lovable/plan.md` (overwrite after execution)
