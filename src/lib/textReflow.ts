@@ -76,7 +76,10 @@ export type ReflowOptions = {
   fontFamily: string;
   fontSize: number;
   availableWidth: number;
+  /** If provided, reflow is constrained to these pageIds (e.g. one surah). */
+  surahPageIds?: string[];
 };
+
 
 /**
  * Cascading reflow from a given row across the entire surah.
