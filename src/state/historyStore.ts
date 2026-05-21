@@ -304,10 +304,18 @@ export function captureHistory(
       label = `${field}: ${beforeStr} → ${afterStr}`;
     }
 
+    let scopeLabel = "";
+    if (pageId) {
+      const pageNum = pageId.replace(/^vpage-/, "");
+      scopeLabel = `পেজ ${pageNum}`;
+      if (rowIndex !== undefined) scopeLabel += ` · সারি ${rowIndex + 1}`;
+    }
+
     useHistoryStore.getState().push({
       label,
       labelBn,
       scope,
+      scopeLabel,
       pageId,
       rowIndex,
       layerKey,
