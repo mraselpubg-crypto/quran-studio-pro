@@ -314,11 +314,24 @@ export function captureHistory(
     }
 
     let scopeLabel = "";
-    if (pageId) {
-      const pageNum = pageId.replace(/^vpage-/, "");
+    const pageNum = pageId ? pageId.replace(/^vpage-/, "") : "";
+    if (scope === "page" && pageId) {
+      scopeLabel = `পেজ ${pageNum}`;
+    } else if (scope === "surah" && pageId) {
+      try {
+        const { useReflowStore } = await import("./reflowStore");
+        const surah = useReflowStore.getState().distribution.find((d) => d.pageId === pageId)?.surah;
+        scopeLabel = surah ? `সূরা ${surah}` : `পেজ ${pageNum}`;
+      } catch {
+        scopeLabel = `পেজ ${pageNum}`;
+      }
+    } else if (scope === "global") {
+      scopeLabel = "";
+    } else if (pageId) {
       scopeLabel = `পেজ ${pageNum}`;
       if (rowIndex !== undefined) scopeLabel += ` · সারি ${rowIndex + 1}`;
     }
+
 
     useHistoryStore.getState().push({
       label,
