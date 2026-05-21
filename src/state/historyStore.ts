@@ -26,6 +26,8 @@ export type HistoryEntry = {
   label: string;
   labelBn: string;
   scope: SelectionScope;
+  /** Human-readable scope context, e.g. "পেজ ৫ · সারি ৩" */
+  scopeLabel?: string;
   pageId?: string;
   rowIndex?: number;
   /** Which layer key was changed (e.g. layer:pageId:rowIndex:arabic) */
