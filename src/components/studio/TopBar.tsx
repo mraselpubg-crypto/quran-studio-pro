@@ -59,6 +59,7 @@ export function TopBar({ totalPages, totalAyat }: { totalPages: number; totalAya
   const editMode = useEditorStore((s) => s.editMode);
   const setEditMode = useEditorStore((s) => s.setEditMode);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
 
   const entriesCount = useHistoryStore((s) => s.entries.length);
   const initialEntriesRef = useRef(entriesCount);
