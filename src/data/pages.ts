@@ -320,3 +320,201 @@ export async function loadGeneratedPages(): Promise<PageData[]> {
 
 /** Back-compat: synchronous export contains only designed pages until hydrated. */
 export const pages: PageData[] = pagesSync;
+
+// ─────────────────────────────────────────────────────────────────────────
+// Chunked async builder — yields between surah groups so the main thread
+// stays responsive while ~1740 pages are rebuilt.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type ChunkProgress = { done: number; total: number; label: string };
+
+const SURAH_GROUPS_PER_CHUNK = 5;
+
+function scheduleIdle(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestIdleCallback !== "undefined") {
+      requestIdleCallback(() => resolve(), { timeout: 200 });
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
+class AbortError extends Error {
+  override name = "AbortError";
+}
+
+async function buildPagesFromVersesChunked(
+  verses: FlowVerse[],
+  startVerseId: number,
+  startPageNo: number,
+  prevSurahArg: number,
+  defaultMarkersArg: string[],
+  opts: BuildOpts,
+  onProgress: ((p: ChunkProgress) => void) | undefined,
+  signal: AbortSignal | undefined,
+  progressOffset: number,
+  progressTotal: number,
+): Promise<ContinuousPage[]> {
+  const arabicFontPx = opts.arabicFontPx ?? ARABIC_FONT_PX;
+  const banglaFontPx = opts.banglaFontPx ?? BANGLA_FONT_PX;
+  const rowOverrides = opts.rowFontOverrides ?? {};
+
+  const queue = verses.filter((v) => v.id >= startVerseId);
+  const surahGroups: { s: number; verses: FlowVerse[] }[] = [];
+  for (const v of queue) {
+    const last = surahGroups[surahGroups.length - 1];
+    if (last && last.s === v.s) last.verses.push(v);
+    else surahGroups.push({ s: v.s, verses: [v] });
+  }
+
+  type PageSlot = GridLineData;
+  const out: ContinuousPage[] = [];
+  let pageNo = startPageNo;
+  let pageSlots: PageSlot[] = [];
+  let firstV: number | null = null;
+  let lastV: number | null = null;
+  let pageSurah: number = prevSurahArg;
+  let prevSurah = prevSurahArg;
+
+  const flushPage = (pad = true) => {
+    if (pageSlots.length === 0) return;
+    if (pad) while (pageSlots.length < LINES_PER_PAGE) pageSlots.push(blankSlot());
+    const m = surahMeta(verses, pageSurah);
+    out.push({
+      id: `vpage-${pageNo}`,
+      type: "continuous",
+      para: `পারা ${bnNum(Math.min(30, Math.ceil(pageNo / 20)))}`,
+      title: m.name,
+      chapter:
+        firstV != null
+          ? `সূরা ${bnNum(pageSurah)} • আয়াত ${bnNum(firstV)}–${bnNum(lastV!)}`
+          : m.name,
+      lines: pageSlots,
+      footer: {
+        surah: m.name,
+        revelation: m.revelation,
+        pageNo: bnNum(pageNo),
+        ayah:
+          firstV != null
+            ? `আয়াত ${bnNum(firstV)}–${bnNum(lastV!)}`
+            : `আয়াত ${m.ayah}`,
+        ruku: `রুকু ${bnNum(Math.ceil(pageNo / 8))}`,
+        manzil: `মাঞ্জিল ${bnNum(Math.min(7, Math.ceil(pageNo / 90)))}`,
+      },
+    });
+    pageNo++;
+    pageSlots = [];
+    firstV = null;
+    lastV = null;
+  };
+
+  for (let gi = 0; gi < surahGroups.length; gi++) {
+    if (signal?.aborted) throw new AbortError("aborted");
+    const grp = surahGroups[gi];
+
+    if (grp.s !== prevSurah) {
+      const remaining = LINES_PER_PAGE - pageSlots.length;
+      if (remaining < SURAH_OPEN_SPAN + 1) flushPage();
+      pageSlots.push(surahOpenSlot(grp.s, verses));
+      pageSlots.push(blankSlot());
+      pageSurah = grp.s;
+      prevSurah = grp.s;
+    } else if (pageSlots.length === 0) {
+      pageSurah = grp.s;
+    }
+
+    const startPn = pageNo;
+    const startSi = pageSlots.length;
+    const predictSlot = (lineIdx: number): { pn: number; si: number } => {
+      let pn = startPn;
+      let si = startSi;
+      for (let k = 0; k < lineIdx; k++) {
+        si++;
+        if (si >= LINES_PER_PAGE) {
+          pn++;
+          si = 0;
+        }
+      }
+      return { pn, si };
+    };
+    const getRowFontPx = (lineIdx: number): number | undefined => {
+      const { pn, si } = predictSlot(lineIdx);
+      return rowOverrides[`row:vpage-${pn}:${si}`];
+    };
+
+    const lines = packVerses(grp.verses, {
+      widthPx: GRID_W_PX,
+      arabicFontPx,
+      arabicFamily: ARABIC_FAMILY,
+      banglaFontPx,
+      banglaFamily: BANGLA_FAMILY,
+      getRowFontPx,
+    });
+
+    for (const fl of lines) {
+      if (pageSlots.length >= LINES_PER_PAGE) flushPage();
+      if (pageSlots.length === 0) pageSurah = grp.s;
+      pageSlots.push({
+        slotKind: "ayah",
+        arabicLine: fl.arabicLine,
+        banglaLine: fl.banglaLine,
+        blocks: [],
+        markers: defaultMarkersArg,
+      });
+      if (fl.startsVerse != null && firstV == null) firstV = fl.startsVerse;
+      if (fl.lastVerse != null) lastV = fl.lastVerse;
+    }
+
+    if ((gi + 1) % SURAH_GROUPS_PER_CHUNK === 0 || gi === surahGroups.length - 1) {
+      onProgress?.({
+        done: progressOffset + gi + 1,
+        total: progressTotal,
+        label: `পেজ তৈরি হচ্ছে… (${out.length})`,
+      });
+      await scheduleIdle();
+      if (signal?.aborted) throw new AbortError("aborted");
+    }
+  }
+  flushPage();
+  return out;
+}
+
+/**
+ * Async chunked equivalent of buildAllPages(). Yields to the event loop
+ * between surah groups so slider drags stay smooth.
+ */
+export async function buildAllPagesChunked(
+  opts: BuildOpts = {},
+  onProgress?: (p: ChunkProgress) => void,
+  signal?: AbortSignal,
+): Promise<PageData[]> {
+  const rebuiltFatiha = buildPagesFromVerses(fatihaVerses, 1, 1, 0, defaultMarkers, opts);
+  if (!cachedVerses) {
+    onProgress?.({ done: 1, total: 1, label: "প্রস্তুত" });
+    return rebuiltFatiha;
+  }
+
+  let totalGroups = 0;
+  let prev = -1;
+  for (const v of cachedVerses) {
+    if (v.s !== prev) {
+      totalGroups++;
+      prev = v.s;
+    }
+  }
+
+  const generated = await buildPagesFromVersesChunked(
+    cachedVerses,
+    8,
+    2,
+    1,
+    defaultMarkers,
+    opts,
+    onProgress,
+    signal,
+    0,
+    totalGroups,
+  );
+  return [...rebuiltFatiha, ...generated];
+}
