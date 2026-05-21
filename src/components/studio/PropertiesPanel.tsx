@@ -216,16 +216,50 @@ function Group({ title, icon: Icon, color, children }: { title: string; icon: Re
   );
 }
 
-function DSlider({ k, label, min, max, fallback, color }: {
-  k: keyof GlobalOverrides; label: string; min: number; max: number; fallback: number; color: string;
+function DSlider({ k, localField, label, min, max, fallback, color }: {
+  k: keyof GlobalOverrides;
+  localField?: keyof LocalOverride;
+  label: string;
+  min: number;
+  max: number;
+  fallback: number;
+  color: string;
 }) {
   const stored = useOverridesStore((s) => s.global[k]);
   const setGlobal = useOverridesStore((s) => s.setGlobal);
+  const scope = useEditorStore((s) => s.scope);
+  const selection = useEditorStore((s) => s.selection);
+  const localOverride = useOverridesStore((s) =>
+    selection ? s.local[selection.key] : undefined,
+  );
   const [dragging, setDragging] = useState<number | null>(null);
 
-  // While dragging: show the dragging value; otherwise show stored or fallback
-  const display = dragging ?? stored ?? fallback;
-  const isOverridden = stored !== undefined;
+  const localValue =
+    localField && localOverride
+      ? (localOverride[localField] as number | undefined)
+      : undefined;
+
+  const useLocal = scope !== "global" && !!selection && !!localField;
+  const effectiveStored = useLocal
+    ? (localValue ?? stored ?? fallback)
+    : (stored ?? fallback);
+  const display = dragging ?? effectiveStored;
+  const isOverridden = useLocal ? localValue !== undefined : stored !== undefined;
+
+  const applyValue = (v: number) => {
+    if (!useLocal) {
+      setGlobal(k, v);
+    } else {
+      void patchScoped(selection!.key, { [localField!]: v } as never, scope);
+    }
+  };
+  const resetValue = () => {
+    if (!useLocal) {
+      setGlobal(k, undefined);
+    } else {
+      void patchScoped(selection!.key, { [localField!]: undefined } as never, scope);
+    }
+  };
 
   return (
     <div className="space-y-1.5">
@@ -233,11 +267,11 @@ function DSlider({ k, label, min, max, fallback, color }: {
         <span className="text-[11px] font-medium text-neutral-400">{label}</span>
         <div className="flex items-center gap-1">
           <input type="number" value={display}
-            onChange={(e) => { const v = Number(e.target.value); setDragging(null); setGlobal(k, v); }}
+            onChange={(e) => { const v = Number(e.target.value); setDragging(null); applyValue(v); }}
             className="w-12 rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-right text-[11px] font-mono outline-none focus:border-amber-400"
             style={{ color: isOverridden ? color : "#737373" }} step={1} min={min} max={max} />
           {isOverridden && (
-            <button onClick={() => { setGlobal(k, undefined); setDragging(null); }} className="ml-1 text-neutral-600 hover:text-amber-400" title="Reset">
+            <button onClick={() => { resetValue(); setDragging(null); }} className="ml-1 text-neutral-600 hover:text-amber-400" title="Reset">
               <RotateCcw className="h-3 w-3" />
             </button>
           )}
@@ -245,13 +279,14 @@ function DSlider({ k, label, min, max, fallback, color }: {
       </div>
       <input type="range" min={min} max={max} value={display}
         onInput={(e) => setDragging(Number((e.target as HTMLInputElement).value))}
-        onChange={(e) => { const v = Number((e.target as HTMLInputElement).value); setDragging(null); setGlobal(k, v); }}
+        onChange={(e) => { const v = Number((e.target as HTMLInputElement).value); setDragging(null); applyValue(v); }}
         className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
         style={{ accentColor: color, background: `linear-gradient(to right, ${color} ${((display - min) / (max - min)) * 100}%, #262626 0%)` }}
       />
     </div>
   );
 }
+
 
 function LocalFields({ color }: { color: string }) {
   const selection = useEditorStore((s) => s.selection);
