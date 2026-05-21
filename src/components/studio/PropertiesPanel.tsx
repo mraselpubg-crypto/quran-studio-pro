@@ -52,8 +52,9 @@ export function PropertiesPanel() {
       {/* ── Scope Selector ── */}
       <div className="flex flex-col gap-2">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-          প্রভাব স্তর (Scope)
+          প্রয়োগ স্তর
         </div>
+
         <div className="flex flex-wrap items-center gap-1.5">
           {SCOPES.map((s) => {
             const m = SCOPE_META[s];
