@@ -430,9 +430,9 @@ function HistoryItem({ entry, onClose }: { entry: HistoryEntry; onClose: () => v
         </span>
       </div>
 
-      {entry.pageId && (
+      {(entry.scopeLabel || entry.pageId) && (
         <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[9px] font-mono text-neutral-500 w-fit">
-          {entry.pageId}{entry.rowIndex !== undefined ? `:${entry.rowIndex}` : ""}
+          📍 {entry.scopeLabel || `${entry.pageId}${entry.rowIndex !== undefined ? `:${entry.rowIndex}` : ""}`}
         </span>
       )}
 
