@@ -189,6 +189,7 @@ export function TopBar({ totalPages, totalAyat }: { totalPages: number; totalAya
 
           <button
             id="btn-quick-publish"
+            onClick={() => setPublishOpen(true)}
             title="Quick publish"
             className="grid h-7 w-7 place-items-center rounded-lg border border-neutral-800 bg-neutral-900 text-neutral-400 transition-colors hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
           >
