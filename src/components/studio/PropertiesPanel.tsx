@@ -181,11 +181,18 @@ function HistoryTab() {
             const m = SCOPE_META[entry.scope] ?? SCOPE_META.global;
             return (
               <div key={entry.id} className="flex flex-col gap-1 rounded bg-neutral-900/50 p-2 group hover:bg-neutral-800 transition-colors">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="rounded-sm px-1.5 py-0.5 text-[9px] font-bold" style={{ background: `${m.color}20`, color: m.color }}>
                     {m.labelBn}
                   </span>
-                  <span className="text-[9px] text-neutral-500">{relativeTime(entry.ts)}</span>
+                  <div className="flex items-center gap-1.5">
+                    {entry.scopeLabel && (
+                      <span className="rounded-sm bg-neutral-800 px-1.5 py-0.5 text-[9px] text-neutral-400">
+                        {entry.scopeLabel}
+                      </span>
+                    )}
+                    <span className="text-[9px] text-neutral-500">{relativeTime(entry.ts)}</span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] text-neutral-300 truncate">{entry.labelBn}</span>
