@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Printer, X } from "lucide-react";
 import { useReflowStore } from "@/state/reflowStore";
 
@@ -51,7 +52,7 @@ export function QuickPublishModal({ open, onClose }: Props) {
     }, 200);
   };
 
-  return (
+  const modal = (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -135,4 +136,6 @@ export function QuickPublishModal({ open, onClose }: Props) {
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modal, document.body) : null;
 }
