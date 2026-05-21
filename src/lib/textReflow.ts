@@ -99,15 +99,19 @@ export function reflowFrom(opts: ReflowOptions): void {
     fontFamily,
     fontSize,
     availableWidth,
+    surahPageIds,
   } = opts;
 
   let overflow = startOverflow.trim();
-  const startPageIdx = allPages.findIndex((p) => p.id === startPageId);
+  const targetPages = surahPageIds
+    ? allPages.filter((p) => surahPageIds.includes(p.id))
+    : allPages;
+  const startPageIdx = targetPages.findIndex((p) => p.id === startPageId);
   if (startPageIdx === -1) return;
 
   // Iterate through pages starting from the given position
-  for (let pi = startPageIdx; pi < allPages.length && overflow !== ""; pi++) {
-    const page = allPages[pi];
+  for (let pi = startPageIdx; pi < targetPages.length && overflow !== ""; pi++) {
+    const page = targetPages[pi];
     const firstRow = pi === startPageIdx ? startRowIndex : 0;
 
     for (let ri = firstRow; ri < page.lines.length; ri++) {
@@ -137,6 +141,7 @@ export function reflowFrom(opts: ReflowOptions): void {
     }
   }
 }
+
 
 /**
  * Gets text before and after the cursor in a contenteditable element.
