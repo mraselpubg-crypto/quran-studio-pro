@@ -192,3 +192,17 @@
   60%  { outline-color: rgba(251,191,36,0.6); box-shadow: 0 0 0 6px rgba(251,191,36,0.15); }
   100% { outline-color: rgba(251,191,36,0); box-shadow: 0 0 0 0 rgba(251,191,36,0); }
 }
+
+/* ─── Quick Publish: print-only stylesheet ────────────────────────── */
+@media print {
+  @page { size: A4; margin: 0; }
+  body * { visibility: hidden !important; }
+  [data-artboard="true"], [data-artboard="true"] * { visibility: visible !important; }
+  [data-artboard="true"] {
+    position: relative !important;
+    page-break-after: always;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  [data-artboard="true"][data-print-skip="true"] { display: none !important; }
+}

@@ -280,6 +280,8 @@ export const Artboard = memo(function Artboard({ page, zoom = 1 }: { page: PageD
   return (
     <div
       ref={boardRef}
+      data-artboard="true"
+      data-page-num={page.id.replace(/^vpage-/, "")}
       className="relative mx-auto bg-white shadow-2xl"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
