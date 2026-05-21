@@ -340,6 +340,21 @@ const FabricRow = memo(function FabricRow({
         data-sel-kind={isTypeTool ? "layer" : undefined}
         data-sel-key={isTypeTool ? bLk : undefined}
         data-layer-kind="bangla"
+        onClick={
+          isTypeTool
+            ? (e) => {
+                e.stopPropagation();
+                useEditorStore.getState().setSelection({
+                  kind: "layer",
+                  key: bLk,
+                  pageId,
+                  rowIndex: i,
+                  layerKind: "bangla",
+                });
+              }
+            : undefined
+        }
+
         style={{
           position: "absolute",
           left: 0,
