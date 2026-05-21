@@ -116,18 +116,17 @@ function TabBtn({ active, onClick, color, children }: { active: boolean; onClick
 }
 
 function ControlsTab({ color, scope }: { color: string; scope: SelectionScope }) {
-  const selection = useEditorStore((s) => s.selection);
   return (
     <div className="flex flex-col gap-4">
       <Group title="আরবি ফন্ট" icon={Type} color={color}>
-        <DSlider k="arabicFontPx" label="সাইজ" min={20} max={80} fallback={ARABIC_FONT_PX} color={color} />
+        <DSlider k="arabicFontPx" localField="fontPx" label="সাইজ" min={20} max={80} fallback={ARABIC_FONT_PX} color={color} />
         <DSlider k="arabicYOffset" label="Y অফসেট" min={-30} max={30} fallback={0} color={color} />
       </Group>
 
       <div className="h-px bg-neutral-800/50" />
-      
+
       <Group title="বাংলা ফন্ট" icon={Type} color={color}>
-        <DSlider k="banglaFontPx" label="সাইজ" min={8} max={32} fallback={BANGLA_FONT_PX} color={color} />
+        <DSlider k="banglaFontPx" localField="fontPx" label="সাইজ" min={8} max={32} fallback={BANGLA_FONT_PX} color={color} />
         <DSlider k="banglaYOffset" label="Y অফসেট" min={-30} max={30} fallback={0} color={color} />
       </Group>
 
@@ -136,14 +135,6 @@ function ControlsTab({ color, scope }: { color: string; scope: SelectionScope })
       <Group title="প্রতীক" icon={BookOpen} color={color}>
         <DSlider k="symbolYOffset" label="Y অফসেট" min={-30} max={30} fallback={0} color={color} />
       </Group>
-
-      {/* Per-line section when row is selected */}
-      {selection && (scope === "page" || scope === "general") && (
-        <>
-          <div className="h-px bg-neutral-800/50" />
-          <RowDetailSection color={color} selection={selection} />
-        </>
-      )}
 
       <div className="h-px bg-neutral-800/50" />
 
@@ -159,6 +150,7 @@ function ControlsTab({ color, scope }: { color: string; scope: SelectionScope })
     </div>
   );
 }
+
 
 function RowDetailSection({ color, selection }: { color: string; selection: import("@/state/editorStore").Selection }) {
   const patchLocal = useOverridesStore((s) => s.patchLocal);
