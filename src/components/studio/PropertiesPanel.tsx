@@ -4,10 +4,11 @@ import {
   RotateCcw, ScanLine, Type, Move
 } from "lucide-react";
 import { useEditorStore, type SelectionScope } from "@/state/editorStore";
-import { useOverridesStore, type GlobalOverrides, patchScoped } from "@/state/overridesStore";
+import { useOverridesStore, type GlobalOverrides, type LocalOverride, patchScoped } from "@/state/overridesStore";
 import { useHistoryStore, relativeTime } from "@/state/historyStore";
 import { useReflowStore } from "@/state/reflowStore";
 import { ARABIC_FONT_PX, BANGLA_FONT_PX } from "./FabricLines";
+
 
 const SCOPE_META: Record<SelectionScope, { labelBn: string; color: string; icon: React.ElementType; desc: string }> = {
   general: { labelBn: "সাধারণ", color: "#f59e0b", icon: AlignJustify, desc: "শুধু নির্বাচিত উপাদান" },
