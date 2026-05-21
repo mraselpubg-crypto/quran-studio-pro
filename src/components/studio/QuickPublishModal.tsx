@@ -136,4 +136,6 @@ export function QuickPublishModal({ open, onClose }: Props) {
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modal, document.body) : null;
 }
