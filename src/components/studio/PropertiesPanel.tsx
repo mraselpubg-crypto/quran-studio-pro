@@ -152,60 +152,6 @@ function ControlsTab({ color, scope }: { color: string; scope: SelectionScope })
 }
 
 
-function RowDetailSection({ color, selection }: { color: string; selection: import("@/state/editorStore").Selection }) {
-  const patchLocal = useOverridesStore((s) => s.patchLocal);
-  const scope = useEditorStore((s) => s.scope);
-  const apply = (patch: Parameters<typeof patchLocal>[1]) => { void patchScoped(selection.key, patch, scope); };
-  const local = useOverridesStore((s) => s.local[selection.key]);
-  const dx = local?.dx ?? 0;
-  const dy = local?.dy ?? 0;
-  const fontPx = local?.fontPx ?? ARABIC_FONT_PX;
-
-  return (
-    <div className="flex flex-col gap-3 rounded-lg border border-neutral-800 bg-neutral-900/30 p-3">
-      <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color }}>
-        সারি বিস্তারিত — {selection.key.replace("row:", "")}
-      </span>
-      <div className="grid grid-cols-2 gap-3">
-        <InlineField label="আরবি ফন্ট" value={fontPx} min={16} max={80}
-          onChange={(v) => apply({ fontPx: v })}
-          onReset={local?.fontPx !== undefined ? () => apply({ fontPx: undefined }) : undefined}
-          color={color} />
-        <InlineField label="X অফসেট" value={dx} min={-100} max={100}
-          onChange={(v) => apply({ dx: v })}
-          onReset={local?.dx !== undefined ? () => apply({ dx: undefined }) : undefined}
-          color={color} />
-        <InlineField label="Y অফসেট" value={dy} min={-100} max={100}
-          onChange={(v) => apply({ dy: v })}
-          onReset={local?.dy !== undefined ? () => apply({ dy: undefined }) : undefined}
-          color={color} />
-      </div>
-      <button onClick={() => apply({ dx: undefined, dy: undefined, fontPx: undefined, scale: undefined })}
-        className="mt-1 rounded border border-neutral-700 bg-neutral-800 py-1.5 text-[10px] font-semibold text-neutral-400 hover:bg-red-900/20 hover:text-red-400 transition-colors">
-        এই সারি রিসেট করুন
-      </button>
-    </div>
-  );
-}
-
-function InlineField({ label, value, min, max, onChange, onReset, color }: {
-  label: string; value: number; min: number; max: number;
-  onChange: (v: number) => void; onReset?: () => void; color: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-neutral-500">{label}</span>
-        {onReset && <button onClick={onReset} className="text-neutral-600 hover:text-amber-400"><RotateCcw className="h-2.5 w-2.5" /></button>}
-      </div>
-      <div className="flex items-center gap-1">
-        <input type="number" value={value} onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full rounded border border-neutral-700 bg-neutral-800 px-1.5 py-1 text-right text-[11px] outline-none focus:border-amber-400"
-          style={{ color }} step={1} min={min} max={max} />
-      </div>
-    </div>
-  );
-}
 
 function HistoryTab() {
   const entries = useHistoryStore((s) => s.entries);
