@@ -493,17 +493,28 @@ function InlineTextEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const getReflowBase = () => ({
-    layer,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    allPages: useReflowStore.getState().pages as unknown as Array<{ id: string; lines: any[] }>,
-    localMap: useOverridesStore.getState().local,
-    patchLocal: useOverridesStore.getState().patchLocal,
-    layerKeyFn: layerKey,
-    fontFamily,
-    fontSize,
-    availableWidth,
-  });
+  const getReflowBase = () => {
+    const dist = useReflowStore.getState().distribution;
+    const srcDist = dist.find((d) => d.pageId === pageId);
+    const srcSurah = srcDist?.surah ?? 0;
+    const surahPageIds =
+      srcSurah > 0
+        ? dist.filter((d) => d.surah === srcSurah).map((d) => d.pageId)
+        : undefined;
+    return {
+      layer,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      allPages: useReflowStore.getState().pages as unknown as Array<{ id: string; lines: any[] }>,
+      localMap: useOverridesStore.getState().local,
+      patchLocal: useOverridesStore.getState().patchLocal,
+      layerKeyFn: layerKey,
+      fontFamily,
+      fontSize,
+      availableWidth,
+      surahPageIds,
+    };
+  };
+
 
   const commit = (text?: string) => {
     if (committedRef.current) return;
