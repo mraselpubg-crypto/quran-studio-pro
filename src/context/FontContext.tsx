@@ -73,8 +73,16 @@ export function FontProvider({ children }: { children: ReactNode }) {
   return <FontCtx.Provider value={value}>{children}</FontCtx.Provider>;
 }
 
-export function useFont() {
+const FALLBACK_CTX: Ctx = {
+  fonts: DEFAULT_FONTS,
+  activeId: "excellent-arabic",
+  activeFamily: DEFAULT_FONTS[0].family,
+  setActiveId: () => {},
+  uploadFont: async () => {},
+};
+
+export function useFont(): Ctx {
   const ctx = useContext(FontCtx);
-  if (!ctx) throw new Error("useFont must be used within FontProvider");
-  return ctx;
+  return ctx ?? FALLBACK_CTX;
 }
+
