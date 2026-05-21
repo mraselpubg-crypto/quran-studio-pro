@@ -264,6 +264,21 @@ const FabricRow = memo(function FabricRow({
         data-sel-kind={isTypeTool ? "layer" : undefined}
         data-sel-key={isTypeTool ? aLk : undefined}
         data-layer-kind="arabic"
+        onClick={
+          isTypeTool
+            ? (e) => {
+                e.stopPropagation();
+                useEditorStore.getState().setSelection({
+                  kind: "layer",
+                  key: aLk,
+                  pageId,
+                  rowIndex: i,
+                  layerKind: "arabic",
+                });
+              }
+            : undefined
+        }
+
         style={{
           position: "absolute",
           left: 0,
