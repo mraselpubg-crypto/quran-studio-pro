@@ -47,7 +47,20 @@ const done = new Promise((resolve, reject) => {
 for (const id of IDS) {
   const file = path.join(SRC, `${id}.svg`);
   const cp = BASE_CP + (id - 1);
-  const glyph = Readable.from([fs.readFileSync(file)]);
+  // Preprocess: flatten styles + drop hidden elements so each glyph becomes
+  // a clean set of visible <path> elements that svgicons2svgfont can parse.
+  const rawSvg = fs.readFileSync(file, "utf8");
+  const { data: cleanSvg } = optimize(rawSvg, {
+    multipass: true,
+    plugins: [
+      { name: "preset-default", params: { overrides: { removeViewBox: false } } },
+      "inlineStyles",
+      "removeHiddenElems",
+      "convertStyleToAttrs",
+      "removeStyleElement",
+    ],
+  });
+  const glyph = Readable.from([Buffer.from(cleanSvg, "utf8")]);
   glyph.metadata = {
     unicode: [String.fromCodePoint(cp)],
     name: `tajweed-${id}`,
