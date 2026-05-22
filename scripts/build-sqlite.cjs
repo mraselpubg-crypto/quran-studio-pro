@@ -91,25 +91,31 @@ async function main() {
   // companion `scripts/dump-pages.mjs` (created by the same plan).
   const dumpJson = path.join(ROOT, "scripts", "pages-dump.json");
   if (!fs.existsSync(dumpJson)) {
-    console.log("\n  pages-dump.json not found.");
-    console.log("  Run:  node scripts/dump-pages.mjs > scripts/pages-dump.json");
-    console.log("  Then re-run this script to populate the pages table.\n");
-  } else {
-    const pages = JSON.parse(fs.readFileSync(dumpJson, "utf8"));
-    const insP = db.prepare(
-      "INSERT INTO pages (id, page_no, surah, json) VALUES (?, ?, ?, ?)"
-    );
-    const txP = db.transaction((rows) => {
-      for (const p of rows) {
-        const pageNo = bnToInt(p.footer?.pageNo);
-        // surah: look up first ayah's surah from id pattern, else null
-        const surah = p.type === "surah-open" ? null : null;
-        insP.run(p.id, pageNo, surah, JSON.stringify(p));
-      }
-    });
-    txP(pages);
-    console.log(`  inserted ${pages.length} pages`);
+    console.error("\n  pages-dump.json not found.");
+    console.error("  Run:  npm run electron:dump-pages");
+    console.error("  Then re-run:  npm run electron:build-db\n");
+    db.close();
+    process.exit(2);
   }
+  const pages = JSON.parse(fs.readFileSync(dumpJson, "utf8"));
+  const insP = db.prepare(
+    "INSERT INTO pages (id, page_no, surah, json) VALUES (?, ?, ?, ?)"
+  );
+  // Derive surah from continuous-page chapter string ("সূরা <bnNum> • আয়াত …").
+  const surahFromChapter = (chapter) => {
+    if (!chapter) return null;
+    const m = String(chapter).match(/সূরা\s+([০-৯]+)/);
+    return m ? bnToInt(m[1]) : null;
+  };
+  const txP = db.transaction((rows) => {
+    for (const p of rows) {
+      const pageNo = bnToInt(p.footer?.pageNo);
+      const surah = p.type === "surah-open" ? null : surahFromChapter(p.chapter);
+      insP.run(p.id, pageNo, surah, JSON.stringify(p));
+    }
+  });
+  txP(pages);
+  console.log(`  inserted ${pages.length} pages`);
 
   db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)").run(
     "built_at",
