@@ -449,6 +449,9 @@ function InlineTextEditor({
   const committedRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const lastSavedRef = useRef<string>(initialText);
+  const { request: requestGuarded, dialogProps: guardDialogProps } = useLargeChangeGuard();
+
+
 
   // Sync DOM ↔ store: on each keystroke, write text to store immediately
   // (no debounce — Zustand patches are cheap, and this guarantees the edit
