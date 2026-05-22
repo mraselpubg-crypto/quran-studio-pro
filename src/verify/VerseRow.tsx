@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { detectTajweed } from "@/lib/tajweed/rules";
-import { TAJWEED_SVG, TAJWEED_RULE_NAMES } from "@/lib/tajweed/svgMap";
+import { TAJWEED_CHAR, TAJWEED_RULE_NAMES } from "@/lib/tajweed/svgMap";
 
 export type Verse = { id: number; s: number; v: number; ar: string };
 
@@ -65,12 +65,14 @@ export function VerseRow({ verse }: { verse: Verse }) {
                   }}
                 >
                   {syms.map((sym, j) => (
-                    <img
+                    <span
                       key={j}
-                      src={TAJWEED_SVG[sym as 1]}
-                      alt={String(sym)}
-                      style={{ width: 18, height: 18, objectFit: "contain" }}
-                    />
+                      className="tajweed-icon"
+                      style={{ fontSize: 18, lineHeight: "18px", display: "inline-block" }}
+                      aria-label={String(sym)}
+                    >
+                      {TAJWEED_CHAR[sym as 1]}
+                    </span>
                   ))}
                 </span>
               </span>
