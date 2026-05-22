@@ -179,7 +179,9 @@ export function TopSymbolLayer({
               pointerEvents: editMode ? "auto" : "none",
               cursor: editMode ? "grab" : "default",
             }}
-          />
+          >
+            {TAJWEED_CHAR[p.symbol]}
+          </span>
         );
       })}
     </div>
