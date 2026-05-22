@@ -24,6 +24,9 @@ import {
   getTextAroundCursor,
   type LayerKind,
 } from "@/lib/textReflow";
+import { useLargeChangeGuard } from "@/hooks/useLargeChangeGuard";
+import { ScopeImpactWarningDialog } from "./ScopeImpactWarningDialog";
+
 
 export type FabricLine = {
   arabic?: string;
