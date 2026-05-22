@@ -44,6 +44,10 @@ type EditorState = {
   navigateToPageId: string | null;
   /** Row key to flash for 1s after navigation */
   focusedRowKey: string | null;
+  /** Set of surah numbers currently expanded in the sidebar */
+  expandedSurahs: Set<number>;
+  toggleSurah: (n: number) => void;
+  expandSurah: (n: number) => void;
   setEditMode: (v: boolean) => void;
   toggleEditMode: () => void;
   setActiveTool: (t: ActiveTool) => void;
@@ -72,6 +76,22 @@ export const useEditorStore = create<EditorState>((set) => ({
   layerPanelOpen: false,
   navigateToPageId: null,
   focusedRowKey: null,
+  expandedSurahs: new Set<number>(),
+
+  toggleSurah: (n) =>
+    set((s) => {
+      const next = new Set(s.expandedSurahs);
+      if (next.has(n)) next.delete(n);
+      else next.add(n);
+      return { expandedSurahs: next };
+    }),
+  expandSurah: (n) =>
+    set((s) => {
+      if (s.expandedSurahs.has(n)) return {};
+      const next = new Set(s.expandedSurahs);
+      next.add(n);
+      return { expandedSurahs: next };
+    }),
 
   setEditMode: (v) => set({ editMode: v, selection: null, activeTool: "select" }),
   toggleEditMode: () =>
