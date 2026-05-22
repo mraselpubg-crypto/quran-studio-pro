@@ -70,7 +70,7 @@ for (const id of IDS) {
 fontStream.end();
 await done;
 
-const svgFont = Buffer.concat(svgFontChunks).toString("utf8");
+const svgFont = svgFontChunks.map((c) => (typeof c === "string" ? c : c.toString("utf8"))).join("");
 const ttf = svg2ttf(svgFont, {
   familyname: "TajweedSymbols",
   description: "Studio Al-Qalam Tajweed Symbols",
