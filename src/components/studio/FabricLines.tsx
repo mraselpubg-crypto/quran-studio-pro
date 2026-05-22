@@ -24,6 +24,9 @@ import {
   getTextAroundCursor,
   type LayerKind,
 } from "@/lib/textReflow";
+import { useLargeChangeGuard } from "@/hooks/useLargeChangeGuard";
+import { ScopeImpactWarningDialog } from "./ScopeImpactWarningDialog";
+
 
 export type FabricLine = {
   arabic?: string;
@@ -446,6 +449,9 @@ function InlineTextEditor({
   const committedRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const lastSavedRef = useRef<string>(initialText);
+  const { request: requestGuarded, dialogProps: guardDialogProps } = useLargeChangeGuard();
+
+
 
   // Sync DOM ↔ store: on each keystroke, write text to store immediately
   // (no debounce — Zustand patches are cheap, and this guarantees the edit
@@ -617,40 +623,79 @@ function InlineTextEditor({
       commit(beforeText);
       el.textContent = beforeText;
 
+      if (!afterText) return;
+
+      const scope = useEditorStore.getState().scope;
       const base = getReflowBase();
       const allPages = base.allPages;
+
+      // 1. Scope → target page IDs
+      let scopePageIds: string[] | undefined;
+      if (scope === "general" || scope === "page") {
+        scopePageIds = [pageId];
+      } else if (scope === "surah") {
+        scopePageIds = base.surahPageIds ?? [pageId];
+      } else {
+        scopePageIds = undefined; // global → all
+      }
+
+      // 2. Resolve insertion point
       const nextRowIdx = rowIndex + 1;
       const nextOnPage = nextRowIdx < lines.length;
-
-      if (nextOnPage) {
-        const nextLk = layerKey(pageId, nextRowIdx, layer);
-        const nextExisting =
-          base.localMap[nextLk]?.text ??
-          (layer === "arabic" ? lines[nextRowIdx]?.arabic : lines[nextRowIdx]?.bangla) ??
-          "";
-        const combined = afterText
-          ? afterText + (nextExisting ? " " + nextExisting : "")
-          : nextExisting;
-        reflowFrom({ ...base, startPageId: pageId, startRowIndex: nextRowIdx, startOverflow: combined });
-      } else {
+      let targetPageId = pageId;
+      let targetRowIdx = nextRowIdx;
+      if (!nextOnPage) {
+        if (scope === "general" || scope === "page") return;
         const pi = allPages.findIndex((p) => p.id === pageId);
-        if (pi >= 0 && pi + 1 < allPages.length) {
-          const nextPage = allPages[pi + 1];
-          const nextLk = layerKey(nextPage.id, 0, layer);
-          const nextExisting =
-            base.localMap[nextLk]?.text ??
-            (layer === "arabic"
-              ? (nextPage.lines[0]?.arabicLine ?? nextPage.lines[0]?.arabic)
-              : (nextPage.lines[0]?.banglaLine ?? nextPage.lines[0]?.bangla)) ??
-            "";
-          const combined = afterText
-            ? afterText + (nextExisting ? " " + nextExisting : "")
-            : nextExisting;
-          reflowFrom({ ...base, startPageId: nextPage.id, startRowIndex: 0, startOverflow: combined });
+        const next = pi >= 0 && pi + 1 < allPages.length ? allPages[pi + 1] : undefined;
+        if (!next) return;
+        targetPageId = next.id;
+        targetRowIdx = 0;
+      }
+
+      // 3. Combined overflow (afterText + existing text at target row)
+      const tPage = allPages.find((p) => p.id === targetPageId);
+      if (!tPage) return;
+      const tLk = layerKey(targetPageId, targetRowIdx, layer);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tRow: any = tPage.lines[targetRowIdx];
+      const tRowFallback =
+        layer === "arabic"
+          ? (tRow?.arabicLine ?? tRow?.arabic ?? "")
+          : (tRow?.banglaLine ?? tRow?.bangla ?? "");
+      const nextExisting = base.localMap[tLk]?.text ?? tRowFallback;
+      const combined = nextExisting ? afterText + " " + nextExisting : afterText;
+
+      // 4. Estimate affected rows
+      const targetPageList = scopePageIds
+        ? allPages.filter((p) => scopePageIds!.includes(p.id))
+        : allPages;
+      const startIdx = targetPageList.findIndex((p) => p.id === targetPageId);
+      let estimatedRows = 0;
+      if (startIdx >= 0) {
+        for (let i = startIdx; i < targetPageList.length; i++) {
+          const rowCount = targetPageList[i].lines?.length ?? 0;
+          estimatedRows += i === startIdx ? Math.max(0, rowCount - targetRowIdx) : rowCount;
         }
       }
+
+      // 5. Guarded execution
+      requestGuarded({
+        scope,
+        estimatedRows,
+        label: "এন্টার কী প্রয়োগ হচ্ছে…",
+        action: () =>
+          reflowFrom({
+            ...base,
+            surahPageIds: scopePageIds,
+            startPageId: targetPageId,
+            startRowIndex: targetRowIdx,
+            startOverflow: combined,
+          }),
+      });
       return;
     }
+
 
     if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
@@ -658,39 +703,43 @@ function InlineTextEditor({
   };
 
   return (
-    <div
-      ref={ref}
-      contentEditable
-      suppressContentEditableWarning
-      dir={dir}
-      lang={lang}
-      spellCheck={false}
-      onBlur={() => {
-        if (rafRef.current != null) {
-          cancelAnimationFrame(rafRef.current);
-          rafRef.current = null;
-        }
-        if (!committedRef.current) commit();
-      }}
-      onInput={handleInput}
-      onKeyDown={handleKeyDown}
-      style={{
-        display: "block",
-        width: "100%",
-        minHeight: "1em",
-        outline: "2px solid rgba(56,189,248,0.7)",
-        outlineOffset: "2px",
-        borderRadius: "2px",
-        background: "rgba(56,189,248,0.06)",
-        caretColor: lang === "ar" ? "#f59e0b" : "#34d399",
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        cursor: "text",
-        userSelect: "text",
-        WebkitUserSelect: "text",
-      }}
-    />
+    <>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        dir={dir}
+        lang={lang}
+        spellCheck={false}
+        onBlur={() => {
+          if (rafRef.current != null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+          if (!committedRef.current) commit();
+        }}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        style={{
+          display: "block",
+          width: "100%",
+          minHeight: "1em",
+          outline: "2px solid rgba(56,189,248,0.7)",
+          outlineOffset: "2px",
+          borderRadius: "2px",
+          background: "rgba(56,189,248,0.06)",
+          caretColor: lang === "ar" ? "#f59e0b" : "#34d399",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          cursor: "text",
+          userSelect: "text",
+          WebkitUserSelect: "text",
+        }}
+      />
+      <ScopeImpactWarningDialog {...guardDialogProps} />
+    </>
   );
+
 }
 
 // Re-export to satisfy legacy types if any
