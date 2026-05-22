@@ -703,39 +703,43 @@ function InlineTextEditor({
   };
 
   return (
-    <div
-      ref={ref}
-      contentEditable
-      suppressContentEditableWarning
-      dir={dir}
-      lang={lang}
-      spellCheck={false}
-      onBlur={() => {
-        if (rafRef.current != null) {
-          cancelAnimationFrame(rafRef.current);
-          rafRef.current = null;
-        }
-        if (!committedRef.current) commit();
-      }}
-      onInput={handleInput}
-      onKeyDown={handleKeyDown}
-      style={{
-        display: "block",
-        width: "100%",
-        minHeight: "1em",
-        outline: "2px solid rgba(56,189,248,0.7)",
-        outlineOffset: "2px",
-        borderRadius: "2px",
-        background: "rgba(56,189,248,0.06)",
-        caretColor: lang === "ar" ? "#f59e0b" : "#34d399",
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        cursor: "text",
-        userSelect: "text",
-        WebkitUserSelect: "text",
-      }}
-    />
+    <>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        dir={dir}
+        lang={lang}
+        spellCheck={false}
+        onBlur={() => {
+          if (rafRef.current != null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+          if (!committedRef.current) commit();
+        }}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        style={{
+          display: "block",
+          width: "100%",
+          minHeight: "1em",
+          outline: "2px solid rgba(56,189,248,0.7)",
+          outlineOffset: "2px",
+          borderRadius: "2px",
+          background: "rgba(56,189,248,0.06)",
+          caretColor: lang === "ar" ? "#f59e0b" : "#34d399",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          cursor: "text",
+          userSelect: "text",
+          WebkitUserSelect: "text",
+        }}
+      />
+      <ScopeImpactWarningDialog {...guardDialogProps} />
+    </>
   );
+
 }
 
 // Re-export to satisfy legacy types if any
