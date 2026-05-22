@@ -17,6 +17,7 @@ import { Readable } from "node:stream";
 import { SVGIcons2SVGFontStream } from "svgicons2svgfont";
 import svg2ttf from "svg2ttf";
 import wawoff2 from "wawoff2";
+import { optimize } from "svgo";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
