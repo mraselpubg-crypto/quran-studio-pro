@@ -53,7 +53,7 @@ for (const id of IDS) {
   const { data: cleanSvg } = optimize(rawSvg, {
     multipass: true,
     plugins: [
-      { name: "preset-default", params: { overrides: { removeViewBox: false } } },
+      "preset-default",
       "inlineStyles",
       "removeHiddenElems",
       "convertStyleToAttrs",
