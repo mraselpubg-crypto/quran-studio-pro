@@ -1,117 +1,177 @@
-## TASK 7 — Chunked Page Building (progress UI + non-blocking rebuild)
+# Plan #9 — Smart Enter Key: Scope-Aware Cascade + Warning Dialog + Large-Change Guard
 
-### লক্ষ্য
-`buildAllPages()` বর্তমানে synchronous — ১৭৪০ পেজ build করতে ~১৫০-২৫০ms main thread block করে। Slider drag বা scope পরিবর্তনের সময় visible jank তৈরি হয়। এই কাজে আমরা build প্রক্রিয়াকে chunk-এ ভাগ করব, idle-frame-এ process করব, এবং progress UI দেখাব।
+Enter key currently pushes after-cursor text into only the next row, ignoring the active scope (general/page/surah/global). This plan makes Enter respect scope bounds, warn the user when many rows will be affected, and surface a progress bar during big cascades.
 
-### Scope
-শুধু `src/data/pages.ts` এবং `src/state/reflowStore.ts`। অন্য component (PageList, PropertiesPanel) অপরিবর্তিত — তারা শুধু `useReflowStore`-এর `pages` array এবং `buildProgress` ব্যবহার করে।
+## Files
+
+1. **NEW** `src/components/studio/ScopeImpactWarningDialog.tsx` — Bengali warning modal.
+2. **NEW** `src/hooks/useLargeChangeGuard.ts` — Hook that gates an action behind the dialog + progress.
+3. **EDIT** `src/components/studio/FabricLines.tsx` — Replace Enter handler with scope-aware logic using the guard.
+
+No store schema changes. `useReflowStore.buildProgress` already exists and is set/cleared from other places.
 
 ---
 
-### পরিবর্তন ১ — `src/data/pages.ts`: chunked async builder
+## 1. `ScopeImpactWarningDialog.tsx`
 
-`buildAllPages()` কে অপরিবর্তিত রাখব (back-compat-এর জন্য), এবং পাশাপাশি নতুন function যোগ করব:
+A controlled modal built on the existing shadcn `AlertDialog` (already in `src/components/ui/alert-dialog.tsx` per file list). Props:
 
 ```ts
-export type ChunkProgress = { done: number; total: number; label: string };
-
-export async function buildAllPagesChunked(
-  opts: BuildOpts = {},
-  onProgress?: (p: ChunkProgress) => void,
-  signal?: AbortSignal,
-): Promise<PageData[]>
+type Props = {
+  open: boolean;
+  scope: "general" | "page" | "surah" | "global";
+  affectedRows: number;
+  onConfirm: () => void;
+  onCancel: () => void;
+};
 ```
 
-কাজের ধাপ:
-1. Fatiha পেজগুলো instantly build (১ surah, sync ঠিক আছে)।
-2. `cachedVerses` কে surah-group-এ split করব (existing `groupBySurah` logic ব্যবহার করে, refactor করে export করব)।
-3. প্রতি **৫ surah group**-এর জন্য একটি chunk — `buildPagesFromVerses()` কে surah-group-subset-এ চালাব এবং result merge করব।
-4. প্রতি chunk-এর পর `await scheduleIdle()` (requestIdleCallback wrapper, fallback `setTimeout(0)`) — main thread free হয়।
-5. প্রতি chunk শেষে `onProgress({ done, total, label: \`পেজ \${done}/\${total} তৈরি হচ্ছে…\` })` call।
-6. `signal?.aborted` check — abort হলে throw করে stale rebuild বাতিল।
+Scope-label map (Bengali): `general → "সাধারণ"`, `page → "পেজ"`, `surah → "সূরা"`, `global → "সকল"`.
 
-**গুরুত্বপূর্ণ:** `buildPagesFromVerses()` বর্তমানে cross-surah page numbering করে (একই পেজে দুটি সূরা থাকতে পারে)। তাই pure per-surah chunking ভুল হবে — পরিবর্তে আমরা পুরো verses array-কে একবারই pack করব কিন্তু **inner loop**-এ surah-group iteration-এর মধ্যে `await yieldIfNeeded()` insert করব। এটাই সবচেয়ে safe approach।
+Body text: `"আপনি ${label} মোডে এডিট করছেন। এই পরিবর্তনের ফলে আনুমানিক ${affectedRows} টি লাইনে প্রভাব পড়বে। আপনি কি চালিয়ে যেতে চান?"`
 
-বাস্তবায়ন: `buildPagesFromVerses()`-এর async variant `buildPagesFromVersesChunked()` তৈরি — একই output, কিন্তু surah-group loop-এর প্রতি ৫টি group-এর পরে yield।
+Buttons: `"না"` (cancel) and `"হ্যাঁ, চালিয়ে যান"` (action). Uses semantic tokens from `styles.css` — no hard-coded colors.
 
 ---
 
-### পরিবর্তন ২ — `src/state/reflowStore.ts`: rebuild() async + AbortController
-
-বর্তমানে `rebuild()` synchronous, একবার `requestIdleCallback`-এ wrap করা। এটিকে replace করব:
+## 2. `useLargeChangeGuard.ts`
 
 ```ts
-rebuild: () => {
-  // Cancel any in-flight rebuild
-  currentAbort?.abort();
-  const abort = new AbortController();
-  currentAbort = abort;
+export type GuardOptions = {
+  scope: SelectionScope;
+  estimatedRows: number;
+  /** Threshold above which the dialog is shown. Default 20. */
+  threshold?: number;
+  /** Run the actual work. May be async. */
+  action: () => void | Promise<void>;
+  /** Optional progress label (Bengali). */
+  label?: string;
+};
 
-  const opts = { /* same as today */ };
-  const sig = computeSignature();
-  set({ rebuilding: true });
-
-  buildAllPagesChunked(opts, (p) => {
-    set({
-      buildProgress: {
-        label: p.label,
-        pct: Math.round((p.done / p.total) * 100),
-      },
-    });
-  }, abort.signal)
-    .then((pages) => {
-      if (abort.signal.aborted) return;
-      if (sig !== computeSignature()) return; // stale
-      set({
-        pages,
-        distribution: computeDistribution(pages),
-        signature: sig,
-        rebuilding: false,
-        buildProgress: null,
-      });
-    })
-    .catch((e) => {
-      if (e?.name === "AbortError") return;
-      console.error("[reflow] rebuild failed", e);
-      set({ rebuilding: false, buildProgress: null });
-    });
-},
+export function useLargeChangeGuard(): {
+  request: (opts: GuardOptions) => void;
+  dialogProps: Props; // wire into <ScopeImpactWarningDialog {...dialogProps} />
+};
 ```
 
-`rebuildPage(pageId)` (optimistic single-page) অপরিবর্তিত — সেটি ইতিমধ্যে fast।
+Behavior:
+- If `estimatedRows < threshold` AND `scope === "general"` → run `action()` immediately.
+- If `scope` is `surah`/`global`, OR `estimatedRows >= threshold` → open dialog. On confirm:
+  1. `useReflowStore.setState({ buildProgress: { label: label ?? "পরিবর্তন প্রয়োগ হচ্ছে…", pct: 10 } })`
+  2. `await new Promise(r => requestAnimationFrame(r))` — yield once so the progress bar paints before the heavy sync work.
+  3. Update progress to `{ pct: 60 }`, run `action()`.
+  4. Set `{ pct: 100 }`, then `setTimeout(() => set({ buildProgress: null }), 400)`.
+  5. `toast.success("পরিবর্তন সম্পন্ন হয়েছে")` via `sonner`.
+- On cancel: close dialog, no-op.
 
-`init()`-এর "Stage 3" call (`get().rebuild()`)-ও async chunked path দিয়ে যাবে, ফলে app-load-এর সময়ও জার্ক হবে না এবং existing `buildProgress` UI আরও smooth progress দেখাবে।
+The hook holds the pending action + scope/rows in local state; `dialogProps.open` derives from that state.
 
 ---
 
-### পরিবর্তন ৩ — Progress UI (already exists)
+## 3. `FabricLines.tsx` — scope-aware Enter
 
-`buildProgress: { label, pct }` ইতিমধ্যে store-এ আছে এবং কোথাও না কোথাও render হচ্ছে (init-এর সময়)। Chunked rebuild-এর সময়েও একই state update হবে — কোনো নতুন UI component দরকার নেই। শুধু verify করব যে progress component `rebuilding === true && buildProgress != null` condition-এ visible থাকে।
+Imports to add: `useLargeChangeGuard`, `ScopeImpactWarningDialog`, `useEditorStore` (already imported).
 
-যদি progress overlay কোথাও না-ই থাকে, ছোট একটি bottom-right toast (`fixed bottom-4 right-4`) যোগ করব যেটি `buildProgress`-এ পড়ে এবং rebuilding-এর সময় দেখায়।
+Render the dialog once at the bottom of `InlineTextEditor`'s return so it sits within the editor's lifecycle.
+
+Replace the Enter branch (lines ~608–652):
+
+```ts
+if (e.key === "Enter" && !e.shiftKey) {
+  e.preventDefault();
+  const el = ref.current; if (!el) return;
+
+  const { before, after } = getTextAroundCursor(el);
+  const beforeText = before.trim();
+  const afterText = after.trim();
+
+  commit(beforeText);
+  el.textContent = beforeText;
+
+  if (!afterText) return; // nothing to cascade
+
+  const scope = useEditorStore.getState().scope;
+  const base = getReflowBase();
+  const allPages = base.allPages;
+
+  // 1. Determine target page IDs from scope
+  let scopePageIds: string[] | undefined;
+  if (scope === "general" || scope === "page") {
+    scopePageIds = [pageId];
+  } else if (scope === "surah") {
+    scopePageIds = base.surahPageIds ?? [pageId];
+  } else {
+    scopePageIds = undefined; // global → all pages
+  }
+
+  // 2. Resolve insertion point (next row, possibly next page)
+  const nextRowIdx = rowIndex + 1;
+  const nextOnPage = nextRowIdx < lines.length;
+  let targetPageId = pageId;
+  let targetRowIdx = nextRowIdx;
+  if (!nextOnPage) {
+    if (scope === "general") return; // general never crosses row boundary
+    const pi = allPages.findIndex(p => p.id === pageId);
+    const next = pi >= 0 ? allPages[pi + 1] : undefined;
+    if (!next) return;
+    if (scope === "page") return; // page-scope won't spill to next page
+    targetPageId = next.id;
+    targetRowIdx = 0;
+  }
+
+  // 3. Build combined overflow text (afterText + existing text at target row)
+  const tPage = allPages.find(p => p.id === targetPageId)!;
+  const tLk = layerKey(targetPageId, targetRowIdx, layer);
+  const existing = base.localMap[tLk]?.text
+    ?? (layer === "arabic" ? tPage.lines[targetRowIdx]?.arabic : tPage.lines[targetRowIdx]?.bangla)
+    ?? "";
+  const combined = existing ? afterText + " " + existing : afterText;
+
+  // 4. Estimate affected rows = sum of rows in scoped pages from insertion point onward
+  const estimatedRows = estimateAffected(allPages, scopePageIds, targetPageId, targetRowIdx);
+
+  // 5. Wrap in guard
+  guard.request({
+    scope,
+    estimatedRows,
+    label: "এন্টার কী প্রয়োগ হচ্ছে…",
+    action: () => reflowFrom({
+      ...base,
+      surahPageIds: scopePageIds, // existing reflowFrom already filters by this
+      startPageId: targetPageId,
+      startRowIndex: targetRowIdx,
+      startOverflow: combined,
+    }),
+  });
+  return;
+}
+```
+
+Helper `estimateAffected()` (local function in the file): iterates `scopePageIds` from `targetPageId` forward, summing `lines.length` per page. Cheap, no canvas measurement.
+
+### Scope rules summary
+
+| Scope    | Cascade range                         | Dialog?                                         |
+|----------|---------------------------------------|-------------------------------------------------|
+| general  | Same row only — Enter no-ops if row is the last of the page | Never |
+| page     | Only within current page              | If overflow reaches last row of page (estimatedRows ≥ remaining rows of page) → dialog |
+| surah    | All pages of current surah            | Always (or threshold) |
+| global   | All pages of all surahs               | Always |
+
+The `useLargeChangeGuard` dialog-trigger logic above already encodes this: surah/global always open dialog; page only when `estimatedRows ≥ threshold` (which naturally triggers at/near end of page).
 
 ---
 
-### Technical details (developer-facing)
+## Verification
 
-- **Chunk size:** ৫ surah group ≈ ৫-৩০ পেজ/chunk → প্রতি chunk ~১০-২০ms work, idle-callback-এ comfortably fit।
-- **AbortController:** stale rebuild (user drags slider rapidly) বাতিল করে — শুধু সর্বশেষ rebuild-এর result commit হয়।
-- **`scheduleIdle` helper:** existing pattern থেকে নেওয়া (`reflowStore.ts:155-163`), একটি Promise-returning version করব।
-- **No breaking changes:** `buildAllPages()` sync export রয়ে যায় (`BrowserDAL`, `getAllPages` সেটি ব্যবহার করে — তারা one-shot full build চায়, async OK তবে scope বাইরে)।
-- **TypeScript:** `npx tsc --noEmit` clean থাকতে হবে।
+- `npx tsc --noEmit` clean.
+- Manual: 
+  - General + middle row → splits silently.
+  - Page + last row → dialog appears; confirm cascades within page only.
+  - Surah/global → dialog appears with row count; progress bar visible briefly.
+  - Cancel → no change.
 
-### যাচাইকরণ চেকলিস্ট
-
-- [ ] Slider drag করার সময় UI freeze হয় না (300ms+ frame nei)
-- [ ] Rebuild চলাকালে `buildProgress` update হয় (label + pct)
-- [ ] দ্রুত পরপর slider move → শুধু শেষেরটার result apply হয় (AbortController কাজ করছে)
-- [ ] App load (init) এ progress smooth ৫→৪০→৭০→১০০ যায়
-- [ ] Final pages array আগের sync build-এর সাথে identical (page count, ids, line content)
-- [ ] `npx tsc --noEmit` clean
-- [ ] `npm run build` exit 0
-
-### Out of scope (পরের কাজ)
-
-- TASK 8 — Tajweed icon font (.woff2) — user-confirmation দরকার
-- `pages_meta` SQLite table populate — Electron-side optimization
-- Web Worker-based build — যদি chunked যথেষ্ট না হয়, পরের iteration-এ
+## Out of scope
+- Undo/redo behavior beyond what `patchLocal`/`reflowFrom` already capture.
+- Back-fill on Backspace (covered by Plan #8).
+- Persisting threshold preference.
