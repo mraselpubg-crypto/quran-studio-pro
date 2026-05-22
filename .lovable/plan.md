@@ -1,53 +1,48 @@
-## Phase 3B — Custom Tajweed Icon Font (.woff2)
+## Phase 3C — SQLite / Electron DAL: verify & finalize
 
-Replace the 12 inline `<img src={TAJWEED_SVG[id]} />` references with a single custom icon font, so symbols are text glyphs (cacheable, GPU-rasterized, no per-symbol HTTP/DOM overhead, scales perfectly with `font-size`).
+Most of Phase 3C is already implemented in the repo. This plan **verifies what exists, fixes the gaps**, and avoids redundant work. The web/browser build remains untouched.
 
-### Scope
+### Current state (already in place)
 
-Affects: `src/tajweed/svgMap.ts`, `src/lib/tajweed/svgMap.ts` (duplicate), `src/components/studio/TopSymbolLayer.tsx`, `src/components/studio/RulesPanel.tsx`, `src/components/verify/VerseRow.tsx`, `src/verify/VerseRow.tsx`. Adds font asset + new `fontCharMap.ts`. CSS additions in `src/styles.css`.
+- `electron/main.cjs` — all 5 IPC handlers exist (`dal:loadVerses`, `dal:getPage`, `dal:getPageRange`, `dal:getSurahPages`, `dal:getTotalPages`), using `better-sqlite3` sync API.
+- `electron/preload.cjs` — exposes `window.electronAPI` with matching method names.
+- `src/data/dal.ts` — `pickDAL()` already returns `ElectronDAL` when `window.electronAPI?.isElectron`, else `BrowserDAL`.
+- `src/data/dal.electron.ts` — full ElectronDAL implementation with verses caching.
+- `scripts/build-sqlite.cjs` — migration script exists.
+- `scripts/dump-pages.mjs` — generates `pages-dump.json` for the build step.
+- `package.json` — has `electron:build-db`, `electron:dump-pages`, `electron:dev`, `electron:package` scripts.
 
-Out of scope: any tajweed rule logic, measurement, or Arabic text rendering.
+### Discrepancy with prompt (intentional — keep existing)
 
-### Step 1 — Generate `tajweed-symbols.woff2`
+The continuation prompt suggests handler names like `getVerses` and column names `surah/ayah/arabic/bangla`. The existing implementation uses `dal:` prefixed handlers and short columns `s/a/ar/bn` matching the source `verses.json` shape and `FlowVerse` type. The existing names are internally consistent across main↔preload↔ElectronDAL↔build-sqlite — **do not rename**, that would break the chain for no benefit.
 
-Add `scripts/build-tajweed-font.mjs` that reads the 12 SVGs in `src/assets/tajweed/`, normalizes each to a 1000×1000 glyph viewBox, and emits an OpenType-SVG font compiled to `.woff2`. Uses `svg2ttf` + `wawoff2` from npm (pure JS, runs in Node, no native binaries).
+### Gaps to fix
 
-```text
-scripts/build-tajweed-font.mjs
-  ├─ Reads src/assets/tajweed/{1..12}.svg
-  ├─ Flattens transforms, normalizes viewBox → 1000×1000
-  ├─ Assigns each to PUA codepoint U+E001..U+E00C
-  ├─ Outputs public/fonts/tajweed-symbols.woff2
-  └─ Outputs src/tajweed/fontCharMap.generated.ts
-```
+1. **`electron/main.cjs` — `surah` column missing for non-`surah-open` pages.** Currently `build-sqlite.cjs` always inserts `surah = null`, so `getSurahPages` returns nothing. Fix by deriving surah from `page.ayahs[0].s` (or equivalent field on the generated page object) during the dump→insert step.
 
-Run once via `node scripts/build-tajweed-font.mjs`; the resulting `.woff2` (~2–4 KB) is committed to `public/fonts/`. The script is re-runnable if SVGs change later.
+2. **`scripts/build-sqlite.cjs` — small robustness fixes.**
+   - Derive `surah` per page from the dumped page object instead of always `null`.
+   - Print a clearer message + non-zero exit when `pages-dump.json` is missing so users run `electron:dump-pages` first.
 
-Dev dependencies to install: `svgo`, `svg2ttf`, `wawoff2`.
+3. **`package.json` — add a convenience composite script.**
+   - `"electron:db": "npm run electron:dump-pages && npm run electron:build-db"` so the full Electron data pipeline is one command.
 
-### Step 2 — Add `src/tajweed/fontCharMap.ts`
+4. **`electron/main.cjs` — read-only DB & better error messages.**
+   - Open the DB with `readonly: true, fileMustExist: true` (we only SELECT from it) and surface a friendlier error if `data.db` is missing.
 
-Stable hand-maintained map (the `.generated.ts` is the source of truth but we export through a clean module that also keeps the Bengali rule names):
+5. **No changes to `src/data/dal.ts` or `src/data/dal.electron.ts`.** Both already match the spec.
 
-```ts
-export type TopSymbolId = 1|2|3|4|5|6|7|8|9|10|11|12;
+### Verification
 
-export const TAJWEED_CHAR: Record<TopSymbolId, string> = {
-  1: "\uE001", 2: "\uE002", 3: "\uE003", 4: "\uE004",
-  5: "\uE005", 6: "\uE006", 7: "\uE007", 8: "\uE008",
-  9: "\uE009", 10: "\uE00A", 11: "\uE00B", 12: "\uE00C",
-};
+- `npx tsc --noEmit` must exit 0 (no TS files change, but re-check).
+- Web build unaffected: `pickDAL()` returns `BrowserDAL` in the browser because `window.electronAPI` is undefined; `dal.electron.ts` is only `require()`d lazily inside that branch, so it never enters the Vite/Worker bundle.
+- Manual Electron smoke: out of scope for this sandbox (no Electron runtime here); the user runs `npm run electron:db && npm run electron:dev` locally.
 
-export const TAJWEED_RULE_NAMES: Record<TopSymbolId, string> = { /* moved from svgMap */ };
-export const ALL_RULE_IDS: TopSymbolId[] = [1,2,3,4,5,6,7,8,9,10,11,12];
-```
+### Out of scope
 
-### Step 3 — Add `@font-face` + helper class in `src/styles.css`
+- Phase 3B (Tajweed font) and Phase 4A/4B — separate follow-ups per the continuation prompt.
+- Any rename of handlers or columns.
 
-```css
-@font-face {
-  font-family: "TajweedSymbols";
-  src: url("/fonts/tajweed-symbols.woff2") format("woff2");
-  font-display: block;
-  font-weight: normal;
-  font
+### Commit
+
+`feat(Phase3C): finalize SQLite Electron DAL (surah derivation, read-only, convenience script)`

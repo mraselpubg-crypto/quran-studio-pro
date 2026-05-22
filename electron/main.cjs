@@ -24,8 +24,16 @@ function openDatabase() {
     path.join(__dirname, "..", "data.db"),
     path.join(app.getPath("userData"), "data.db"),
   ];
-  const dbPath = candidates.find((p) => p && fs.existsSync(p)) ?? candidates[1];
-  db = new Database(dbPath, { readonly: false, fileMustExist: false });
+  const dbPath = candidates.find((p) => p && fs.existsSync(p));
+  if (!dbPath) {
+    throw new Error(
+      "data.db not found. Run `npm run electron:db` to build the SQLite snapshot first.\n" +
+        "Looked in:\n  - " +
+        candidates.filter(Boolean).join("\n  - ")
+    );
+  }
+  // Read-only: the renderer only SELECTs from this snapshot.
+  db = new Database(dbPath, { readonly: true, fileMustExist: true });
   db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
   return db;
