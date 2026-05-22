@@ -143,6 +143,118 @@ export function reflowFrom(opts: ReflowOptions): void {
 }
 
 
+export type BackFillOptions = {
+  startPageId: string;
+  startRowIndex: number;
+  layer: LayerKind;
+  allPages: Array<{ id: string; lines: FabricLine[] }>;
+  localMap: Record<string, LocalOverride>;
+  patchLocal: (key: string, ov: Partial<LocalOverride>) => void;
+  layerKeyFn: (pid: string, ri: number, layer: LayerKind) => string;
+  fontFamily: string;
+  fontSize: number;
+  availableWidth: number;
+  surahPageIds?: string[];
+};
+
+/**
+ * Back-fill cascade: when a row has spare width, pull leading words from the
+ * next row(s) to fill it. Continues forward until no more words can be pulled
+ * or the end of the target page range is reached.
+ *
+ * Uses Canvas measurement only (no DOM reads). Mirrors `reflowFrom` style.
+ */
+export function backFillFrom(opts: BackFillOptions): void {
+  const {
+    startPageId,
+    startRowIndex,
+    layer,
+    allPages,
+    localMap,
+    patchLocal,
+    layerKeyFn,
+    fontFamily,
+    fontSize,
+    availableWidth,
+    surahPageIds,
+  } = opts;
+
+  const targetPages = surahPageIds
+    ? allPages.filter((p) => surahPageIds.includes(p.id))
+    : allPages;
+  const startPageIdx = targetPages.findIndex((p) => p.id === startPageId);
+  if (startPageIdx === -1) return;
+
+  // In-memory text cache so iterative writes are visible without re-reading store.
+  const textCache = new Map<string, string>();
+  const readText = (pid: string, ri: number, lines: FabricLine[]): string => {
+    const lk = layerKeyFn(pid, ri, layer);
+    if (textCache.has(lk)) return textCache.get(lk)!;
+    return getEffectiveText(pid, ri, layer, lines, localMap, layerKeyFn);
+  };
+  const writeText = (pid: string, ri: number, text: string) => {
+    const lk = layerKeyFn(pid, ri, layer);
+    textCache.set(lk, text);
+    patchLocal(lk, { text });
+  };
+
+  let pi = startPageIdx;
+  let ri = startRowIndex;
+
+  const maxIterations = targetPages.length * 50 + 100;
+  let iter = 0;
+
+  while (iter++ < maxIterations) {
+    const curPage = targetPages[pi];
+    if (!curPage || ri >= curPage.lines.length) break;
+
+    // Find next row (same page, else next page row 0).
+    let nPi = pi;
+    let nRi = ri + 1;
+    if (nRi >= curPage.lines.length) {
+      nPi = pi + 1;
+      nRi = 0;
+    }
+    if (nPi >= targetPages.length) break;
+    const nextPage = targetPages[nPi];
+    if (!nextPage || nextPage.lines.length === 0) break;
+
+    const curText = readText(curPage.id, ri, curPage.lines).trim();
+    const nextText = readText(nextPage.id, nRi, nextPage.lines).trim();
+
+    if (nextText === "") {
+      // Empty next row — nothing to pull; advance to it and continue collapsing.
+      pi = nPi;
+      ri = nRi;
+      continue;
+    }
+
+    const combined = curText ? curText + " " + nextText : nextText;
+    const { fits, overflow } = splitToFitCanvas(
+      combined,
+      availableWidth,
+      fontFamily,
+      fontSize,
+    );
+
+    // No extra word pulled — leading word of nextText doesn't fit. Stop.
+    if (fits === curText) break;
+
+    writeText(curPage.id, ri, fits);
+    writeText(nextPage.id, nRi, overflow.trim());
+
+    if (overflow.trim() === "") {
+      // Next row fully drained — advance and try to pull from the row after.
+      pi = nPi;
+      ri = nRi;
+      continue;
+    }
+    // Next row still has text but couldn't give more — done.
+    break;
+  }
+}
+
+
 /**
  * Gets text before and after the cursor in a contenteditable element.
  */

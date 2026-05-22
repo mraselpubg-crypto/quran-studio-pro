@@ -19,6 +19,8 @@ import { useReflowStore } from "@/state/reflowStore";
 import {
   splitToFit,
   reflowFrom,
+  backFillFrom,
+  measureTextWidth,
   getTextAroundCursor,
   type LayerKind,
 } from "@/lib/textReflow";
@@ -535,45 +537,57 @@ function InlineTextEditor({
     // Always sync current text first (covers normal typing)
     syncToStore();
 
-    if (el.scrollWidth <= el.clientWidth + 2) return;
-
     const currentText = el.textContent ?? "";
     const { fits, overflow } = splitToFit(currentText, availableWidth, fontFamily, fontSize);
-    if (!overflow) return;
 
-    lastSavedRef.current = fits;
-    useOverridesStore.getState().patchLocal(lk, { text: fits });
-    el.textContent = fits;
-    try {
-      const sel = window.getSelection();
-      if (sel) {
-        const range = document.createRange();
-        if (el.lastChild) range.setStartAfter(el.lastChild);
-        else range.setStart(el, 0);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    } catch { /* ignore */ }
+    if (overflow) {
+      // Push overflow forward into subsequent rows.
+      lastSavedRef.current = fits;
+      useOverridesStore.getState().patchLocal(lk, { text: fits });
+      el.textContent = fits;
+      try {
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          if (el.lastChild) range.setStartAfter(el.lastChild);
+          else range.setStart(el, 0);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      } catch { /* ignore */ }
 
-    const base = getReflowBase();
-    const nextRowIdx = rowIndex + 1;
-    const nextOnPage = nextRowIdx < lines.length;
-    const targetPageId = nextOnPage
-      ? pageId
-      : (() => {
-          const allPages = base.allPages;
-          const pi = allPages.findIndex((p) => p.id === pageId);
-          return pi >= 0 && pi + 1 < allPages.length ? allPages[pi + 1].id : pageId;
-        })();
-    const targetRowIdx = nextOnPage ? nextRowIdx : 0;
+      const base = getReflowBase();
+      const nextRowIdx = rowIndex + 1;
+      const nextOnPage = nextRowIdx < lines.length;
+      const targetPageId = nextOnPage
+        ? pageId
+        : (() => {
+            const allPages = base.allPages;
+            const pi = allPages.findIndex((p) => p.id === pageId);
+            return pi >= 0 && pi + 1 < allPages.length ? allPages[pi + 1].id : pageId;
+          })();
+      const targetRowIdx = nextOnPage ? nextRowIdx : 0;
 
-    reflowFrom({
-      ...base,
-      startPageId: targetPageId,
-      startRowIndex: targetRowIdx,
-      startOverflow: overflow,
-    });
+      reflowFrom({
+        ...base,
+        startPageId: targetPageId,
+        startRowIndex: targetRowIdx,
+        startOverflow: overflow,
+      });
+      return;
+    }
+
+    // Text fits — if there is spare room, try to back-fill from subsequent rows.
+    const currentWidth = measureTextWidth(currentText, fontFamily, fontSize);
+    if (currentWidth < availableWidth - 20) {
+      const base = getReflowBase();
+      backFillFrom({
+        ...base,
+        startPageId: pageId,
+        startRowIndex: rowIndex,
+      });
+    }
   };
 
   const handleInput = () => {
