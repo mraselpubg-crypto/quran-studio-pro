@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { detectTajweed, type TajweedMatch } from "@/lib/tajweed/rules";
 import { measureCharCenter } from "@/lib/tajweed/measure";
-import { TAJWEED_SVG } from "@/lib/tajweed/svgMap";
+import { TAJWEED_CHAR } from "@/lib/tajweed/svgMap";
 import { useTajweedRules } from "@/context/TajweedRulesContext";
 import { useOverridesStore } from "@/state/overridesStore";
 import { useEditorStore } from "@/state/editorStore";
@@ -157,12 +157,10 @@ export function TopSymbolLayer({
         const tx = ov?.dx ?? 0;
         const ty = ov?.dy ?? 0;
         return (
-          <img
+          <span
             key={`${p.charIndex}-${p.symbol}-${i}`}
-            src={TAJWEED_SVG[p.symbol]}
-            alt=""
+            className="tajweed-icon"
             aria-hidden="true"
-            draggable={false}
             data-sel-kind="symbol"
             data-sel-key={key}
             style={{
@@ -173,10 +171,11 @@ export function TopSymbolLayer({
               transformOrigin: "top center",
               width: sizePx,
               height: sizePx,
-              objectFit: "contain",
-              objectPosition: "top center",
+              fontSize: sizePx,
+              lineHeight: `${sizePx}px`,
+              textAlign: "center",
+              color: "currentColor",
               display: "block",
-              userSelect: "none",
               pointerEvents: editMode ? "auto" : "none",
               cursor: editMode ? "grab" : "default",
             }}
