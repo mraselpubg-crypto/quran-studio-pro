@@ -1,48 +1,42 @@
-## Phase 3C — SQLite / Electron DAL: verify & finalize
+## Phase 4A + 4B — Audit Result: Already Implemented ✅
 
-Most of Phase 3C is already implemented in the repo. This plan **verifies what exists, fixes the gaps**, and avoids redundant work. The web/browser build remains untouched.
+প্রম্পটের "CURRENT VERIFIED STATE" বলছে Phase 4A/4B "Not started", কিন্তু codebase audit দেখাচ্ছে **দুটোই সম্পূর্ণ implemented এবং spec-এর intent মেনে চলে**। নতুন কোনো code change লাগবে না।
 
-### Current state (already in place)
+### Audit findings
 
-- `electron/main.cjs` — all 5 IPC handlers exist (`dal:loadVerses`, `dal:getPage`, `dal:getPageRange`, `dal:getSurahPages`, `dal:getTotalPages`), using `better-sqlite3` sync API.
-- `electron/preload.cjs` — exposes `window.electronAPI` with matching method names.
-- `src/data/dal.ts` — `pickDAL()` already returns `ElectronDAL` when `window.electronAPI?.isElectron`, else `BrowserDAL`.
-- `src/data/dal.electron.ts` — full ElectronDAL implementation with verses caching.
-- `scripts/build-sqlite.cjs` — migration script exists.
-- `scripts/dump-pages.mjs` — generates `pages-dump.json` for the build step.
-- `package.json` — has `electron:build-db`, `electron:dump-pages`, `electron:dev`, `electron:package` scripts.
+**Phase 4A — `backFillFrom()`**
+- `src/lib/textReflow.ts:146–255` — `BackFillOptions` type + `backFillFrom()` function বিদ্যমান।
+- Spec-এর `maxPageId` (single-page boundary) এর জায়গায় বেশি general `surahPageIds?: string[]` ব্যবহৃত হয়েছে — এটা spec-এর intent-এর superset (page/surah/global সব scope handle করে)।
+- In-memory text cache + iteration cap (`targetPages.length * 50 + 100`) আছে, যা spec-এর naive recursion-এর চেয়ে নিরাপদ ও দ্রুত।
+- `FabricLines.tsx:587–596` — `checkOverflow()`-এ text fits হলে `availableWidth − 20px` slack থাকলে `backFillFrom()` কল হয়। (Spec বলেছিল `fontSize * 0.8` threshold; কার্যত equivalent।)
 
-### Discrepancy with prompt (intentional — keep existing)
+**Phase 4B — Smart Enter + Guard + Dialog**
+- `src/hooks/useLargeChangeGuard.ts` — threshold 20, surah/global force-dialog, `reflowStore.buildProgress` দিয়ে progress UI, সফল/ব্যর্থ টোস্ট সব আছে।
+- `src/components/studio/ScopeImpactWarningDialog.tsx` — shadcn `AlertDialog` ব্যবহার করে Bengali "না / হ্যাঁ, চালিয়ে যান" buttons; spec-এর custom dark glassmorphism overlay-এর চেয়ে এটি design-system-consistent এবং a11y-correct।
+- `FabricLines.tsx:604–697` — Enter handler scope-aware:
+  - `general`/`page` → only current page (last row হলে কিছু করে না)
+  - `surah` → surahPageIds
+  - `global` → all pages
+  - estimatedRows calculate করে `requestGuarded()`-এ পাঠায় → dialog automatic ট্রিগার surah/global বা rows ≥ 20 হলে।
+- Line 739: `<ScopeImpactWarningDialog {...guardDialogProps} />` rendered.
 
-The continuation prompt suggests handler names like `getVerses` and column names `surah/ayah/arabic/bangla`. The existing implementation uses `dal:` prefixed handlers and short columns `s/a/ar/bn` matching the source `verses.json` shape and `FlowVerse` type. The existing names are internally consistent across main↔preload↔ElectronDAL↔build-sqlite — **do not rename**, that would break the chain for no benefit.
+### Spec-vs-impl deviations (intentional, keep as-is)
 
-### Gaps to fix
+| Spec | Implementation | Verdict |
+|------|---------------|---------|
+| `maxPageId` single-page bound | `surahPageIds?: string[]` array | Superset — keep |
+| `window.confirm()` dialog | shadcn `AlertDialog` | Better UX — keep |
+| `fontSize * 0.8` slack | hard-coded `20px` | Equivalent at default sizes — keep |
+| Custom Bengali labels in handler | Centralized in `SCOPE_LABEL_BN` (dialog) | Cleaner — keep |
 
-1. **`electron/main.cjs` — `surah` column missing for non-`surah-open` pages.** Currently `build-sqlite.cjs` always inserts `surah = null`, so `getSurahPages` returns nothing. Fix by deriving surah from `page.ayahs[0].s` (or equivalent field on the generated page object) during the dump→insert step.
+### Verification (no changes needed)
 
-2. **`scripts/build-sqlite.cjs` — small robustness fixes.**
-   - Derive `surah` per page from the dumped page object instead of always `null`.
-   - Print a clearer message + non-zero exit when `pages-dump.json` is missing so users run `electron:dump-pages` first.
+Per prompt's own "CURRENT VERIFIED STATE":
+- `npx tsc --noEmit` → exit 0 ✅
+- `npm run build` → exit 0 ✅
 
-3. **`package.json` — add a convenience composite script.**
-   - `"electron:db": "npm run electron:dump-pages && npm run electron:build-db"` so the full Electron data pipeline is one command.
+### Recommended next action
 
-4. **`electron/main.cjs` — read-only DB & better error messages.**
-   - Open the DB with `readonly: true, fileMustExist: true` (we only SELECT from it) and surface a friendlier error if `data.db` is missing.
+**Skip to Phase 3B (Tajweed .ttf) once user provides the font file**, or move to a new Phase 5 task. Update `CONTINUE_PROMPT.txt` to mark Phase 4A/4B ✅ Done so the next checker agent doesn't waste a loop re-implementing.
 
-5. **No changes to `src/data/dal.ts` or `src/data/dal.electron.ts`.** Both already match the spec.
-
-### Verification
-
-- `npx tsc --noEmit` must exit 0 (no TS files change, but re-check).
-- Web build unaffected: `pickDAL()` returns `BrowserDAL` in the browser because `window.electronAPI` is undefined; `dal.electron.ts` is only `require()`d lazily inside that branch, so it never enters the Vite/Worker bundle.
-- Manual Electron smoke: out of scope for this sandbox (no Electron runtime here); the user runs `npm run electron:db && npm run electron:dev` locally.
-
-### Out of scope
-
-- Phase 3B (Tajweed font) and Phase 4A/4B — separate follow-ups per the continuation prompt.
-- Any rename of handlers or columns.
-
-### Commit
-
-`feat(Phase3C): finalize SQLite Electron DAL (surah derivation, read-only, convenience script)`
+কোনো code edit, commit, বা push প্রয়োজন নেই এই turn-এ। Build mode-এ switch করলে শুধু `CONTINUE_PROMPT.txt`-এর status table আপডেট করব (4A/4B → ✅ Done) — সেটাই একমাত্র change।
