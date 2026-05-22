@@ -19,6 +19,8 @@ import { useReflowStore } from "@/state/reflowStore";
 import {
   splitToFit,
   reflowFrom,
+  backFillFrom,
+  measureTextWidth,
   getTextAroundCursor,
   type LayerKind,
 } from "@/lib/textReflow";
