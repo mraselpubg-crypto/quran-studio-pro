@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { BookOpen, X } from "lucide-react";
-import { ALL_RULE_IDS, TAJWEED_RULE_NAMES, TAJWEED_SVG, type TopSymbolId } from "@/lib/tajweed/svgMap";
+import { ALL_RULE_IDS, TAJWEED_RULE_NAMES, TAJWEED_CHAR, type TopSymbolId } from "@/lib/tajweed/svgMap";
 import { useTajweedRules } from "@/context/TajweedRulesContext";
 
 export function RulesPanel() {
@@ -43,7 +43,7 @@ export function RulesPanel() {
                 title="বড় করে দেখুন"
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-white p-1 hover:ring-1 hover:ring-amber-400"
               >
-                <img src={TAJWEED_SVG[id]} alt={`Rule ${id}`} className="max-h-full max-w-full" />
+                <span className="tajweed-icon text-neutral-900" style={{ fontSize: 28, lineHeight: 1 }} aria-label={`Rule ${id}`}>{TAJWEED_CHAR[id]}</span>
               </button>
               <div className="min-w-0 flex-1">
                 <div className="text-[11px] font-semibold text-neutral-200">
@@ -74,11 +74,11 @@ export function RulesPanel() {
             >
               <X className="h-4 w-4" />
             </button>
-            <img
-              src={TAJWEED_SVG[preview]}
-              alt={`Rule ${preview}`}
-              className="mx-auto max-h-[60vh] max-w-full"
-            />
+            <span
+              className="tajweed-icon mx-auto block text-neutral-900"
+              style={{ fontSize: "min(60vh, 60vw)", lineHeight: 1, textAlign: "center" }}
+              aria-label={`Rule ${preview}`}
+            >{TAJWEED_CHAR[preview]}</span>
             <div className="mt-3 text-center text-sm font-semibold text-neutral-800">
               রুল {preview} — {TAJWEED_RULE_NAMES[preview]}
             </div>

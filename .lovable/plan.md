@@ -1,177 +1,53 @@
-# Plan #9 — Smart Enter Key: Scope-Aware Cascade + Warning Dialog + Large-Change Guard
+## Phase 3B — Custom Tajweed Icon Font (.woff2)
 
-Enter key currently pushes after-cursor text into only the next row, ignoring the active scope (general/page/surah/global). This plan makes Enter respect scope bounds, warn the user when many rows will be affected, and surface a progress bar during big cascades.
+Replace the 12 inline `<img src={TAJWEED_SVG[id]} />` references with a single custom icon font, so symbols are text glyphs (cacheable, GPU-rasterized, no per-symbol HTTP/DOM overhead, scales perfectly with `font-size`).
 
-## Files
+### Scope
 
-1. **NEW** `src/components/studio/ScopeImpactWarningDialog.tsx` — Bengali warning modal.
-2. **NEW** `src/hooks/useLargeChangeGuard.ts` — Hook that gates an action behind the dialog + progress.
-3. **EDIT** `src/components/studio/FabricLines.tsx` — Replace Enter handler with scope-aware logic using the guard.
+Affects: `src/tajweed/svgMap.ts`, `src/lib/tajweed/svgMap.ts` (duplicate), `src/components/studio/TopSymbolLayer.tsx`, `src/components/studio/RulesPanel.tsx`, `src/components/verify/VerseRow.tsx`, `src/verify/VerseRow.tsx`. Adds font asset + new `fontCharMap.ts`. CSS additions in `src/styles.css`.
 
-No store schema changes. `useReflowStore.buildProgress` already exists and is set/cleared from other places.
+Out of scope: any tajweed rule logic, measurement, or Arabic text rendering.
 
----
+### Step 1 — Generate `tajweed-symbols.woff2`
 
-## 1. `ScopeImpactWarningDialog.tsx`
+Add `scripts/build-tajweed-font.mjs` that reads the 12 SVGs in `src/assets/tajweed/`, normalizes each to a 1000×1000 glyph viewBox, and emits an OpenType-SVG font compiled to `.woff2`. Uses `svg2ttf` + `wawoff2` from npm (pure JS, runs in Node, no native binaries).
 
-A controlled modal built on the existing shadcn `AlertDialog` (already in `src/components/ui/alert-dialog.tsx` per file list). Props:
-
-```ts
-type Props = {
-  open: boolean;
-  scope: "general" | "page" | "surah" | "global";
-  affectedRows: number;
-  onConfirm: () => void;
-  onCancel: () => void;
-};
+```text
+scripts/build-tajweed-font.mjs
+  ├─ Reads src/assets/tajweed/{1..12}.svg
+  ├─ Flattens transforms, normalizes viewBox → 1000×1000
+  ├─ Assigns each to PUA codepoint U+E001..U+E00C
+  ├─ Outputs public/fonts/tajweed-symbols.woff2
+  └─ Outputs src/tajweed/fontCharMap.generated.ts
 ```
 
-Scope-label map (Bengali): `general → "সাধারণ"`, `page → "পেজ"`, `surah → "সূরা"`, `global → "সকল"`.
+Run once via `node scripts/build-tajweed-font.mjs`; the resulting `.woff2` (~2–4 KB) is committed to `public/fonts/`. The script is re-runnable if SVGs change later.
 
-Body text: `"আপনি ${label} মোডে এডিট করছেন। এই পরিবর্তনের ফলে আনুমানিক ${affectedRows} টি লাইনে প্রভাব পড়বে। আপনি কি চালিয়ে যেতে চান?"`
+Dev dependencies to install: `svgo`, `svg2ttf`, `wawoff2`.
 
-Buttons: `"না"` (cancel) and `"হ্যাঁ, চালিয়ে যান"` (action). Uses semantic tokens from `styles.css` — no hard-coded colors.
+### Step 2 — Add `src/tajweed/fontCharMap.ts`
 
----
-
-## 2. `useLargeChangeGuard.ts`
+Stable hand-maintained map (the `.generated.ts` is the source of truth but we export through a clean module that also keeps the Bengali rule names):
 
 ```ts
-export type GuardOptions = {
-  scope: SelectionScope;
-  estimatedRows: number;
-  /** Threshold above which the dialog is shown. Default 20. */
-  threshold?: number;
-  /** Run the actual work. May be async. */
-  action: () => void | Promise<void>;
-  /** Optional progress label (Bengali). */
-  label?: string;
+export type TopSymbolId = 1|2|3|4|5|6|7|8|9|10|11|12;
+
+export const TAJWEED_CHAR: Record<TopSymbolId, string> = {
+  1: "\uE001", 2: "\uE002", 3: "\uE003", 4: "\uE004",
+  5: "\uE005", 6: "\uE006", 7: "\uE007", 8: "\uE008",
+  9: "\uE009", 10: "\uE00A", 11: "\uE00B", 12: "\uE00C",
 };
 
-export function useLargeChangeGuard(): {
-  request: (opts: GuardOptions) => void;
-  dialogProps: Props; // wire into <ScopeImpactWarningDialog {...dialogProps} />
-};
+export const TAJWEED_RULE_NAMES: Record<TopSymbolId, string> = { /* moved from svgMap */ };
+export const ALL_RULE_IDS: TopSymbolId[] = [1,2,3,4,5,6,7,8,9,10,11,12];
 ```
 
-Behavior:
-- If `estimatedRows < threshold` AND `scope === "general"` → run `action()` immediately.
-- If `scope` is `surah`/`global`, OR `estimatedRows >= threshold` → open dialog. On confirm:
-  1. `useReflowStore.setState({ buildProgress: { label: label ?? "পরিবর্তন প্রয়োগ হচ্ছে…", pct: 10 } })`
-  2. `await new Promise(r => requestAnimationFrame(r))` — yield once so the progress bar paints before the heavy sync work.
-  3. Update progress to `{ pct: 60 }`, run `action()`.
-  4. Set `{ pct: 100 }`, then `setTimeout(() => set({ buildProgress: null }), 400)`.
-  5. `toast.success("পরিবর্তন সম্পন্ন হয়েছে")` via `sonner`.
-- On cancel: close dialog, no-op.
+### Step 3 — Add `@font-face` + helper class in `src/styles.css`
 
-The hook holds the pending action + scope/rows in local state; `dialogProps.open` derives from that state.
-
----
-
-## 3. `FabricLines.tsx` — scope-aware Enter
-
-Imports to add: `useLargeChangeGuard`, `ScopeImpactWarningDialog`, `useEditorStore` (already imported).
-
-Render the dialog once at the bottom of `InlineTextEditor`'s return so it sits within the editor's lifecycle.
-
-Replace the Enter branch (lines ~608–652):
-
-```ts
-if (e.key === "Enter" && !e.shiftKey) {
-  e.preventDefault();
-  const el = ref.current; if (!el) return;
-
-  const { before, after } = getTextAroundCursor(el);
-  const beforeText = before.trim();
-  const afterText = after.trim();
-
-  commit(beforeText);
-  el.textContent = beforeText;
-
-  if (!afterText) return; // nothing to cascade
-
-  const scope = useEditorStore.getState().scope;
-  const base = getReflowBase();
-  const allPages = base.allPages;
-
-  // 1. Determine target page IDs from scope
-  let scopePageIds: string[] | undefined;
-  if (scope === "general" || scope === "page") {
-    scopePageIds = [pageId];
-  } else if (scope === "surah") {
-    scopePageIds = base.surahPageIds ?? [pageId];
-  } else {
-    scopePageIds = undefined; // global → all pages
-  }
-
-  // 2. Resolve insertion point (next row, possibly next page)
-  const nextRowIdx = rowIndex + 1;
-  const nextOnPage = nextRowIdx < lines.length;
-  let targetPageId = pageId;
-  let targetRowIdx = nextRowIdx;
-  if (!nextOnPage) {
-    if (scope === "general") return; // general never crosses row boundary
-    const pi = allPages.findIndex(p => p.id === pageId);
-    const next = pi >= 0 ? allPages[pi + 1] : undefined;
-    if (!next) return;
-    if (scope === "page") return; // page-scope won't spill to next page
-    targetPageId = next.id;
-    targetRowIdx = 0;
-  }
-
-  // 3. Build combined overflow text (afterText + existing text at target row)
-  const tPage = allPages.find(p => p.id === targetPageId)!;
-  const tLk = layerKey(targetPageId, targetRowIdx, layer);
-  const existing = base.localMap[tLk]?.text
-    ?? (layer === "arabic" ? tPage.lines[targetRowIdx]?.arabic : tPage.lines[targetRowIdx]?.bangla)
-    ?? "";
-  const combined = existing ? afterText + " " + existing : afterText;
-
-  // 4. Estimate affected rows = sum of rows in scoped pages from insertion point onward
-  const estimatedRows = estimateAffected(allPages, scopePageIds, targetPageId, targetRowIdx);
-
-  // 5. Wrap in guard
-  guard.request({
-    scope,
-    estimatedRows,
-    label: "এন্টার কী প্রয়োগ হচ্ছে…",
-    action: () => reflowFrom({
-      ...base,
-      surahPageIds: scopePageIds, // existing reflowFrom already filters by this
-      startPageId: targetPageId,
-      startRowIndex: targetRowIdx,
-      startOverflow: combined,
-    }),
-  });
-  return;
-}
-```
-
-Helper `estimateAffected()` (local function in the file): iterates `scopePageIds` from `targetPageId` forward, summing `lines.length` per page. Cheap, no canvas measurement.
-
-### Scope rules summary
-
-| Scope    | Cascade range                         | Dialog?                                         |
-|----------|---------------------------------------|-------------------------------------------------|
-| general  | Same row only — Enter no-ops if row is the last of the page | Never |
-| page     | Only within current page              | If overflow reaches last row of page (estimatedRows ≥ remaining rows of page) → dialog |
-| surah    | All pages of current surah            | Always (or threshold) |
-| global   | All pages of all surahs               | Always |
-
-The `useLargeChangeGuard` dialog-trigger logic above already encodes this: surah/global always open dialog; page only when `estimatedRows ≥ threshold` (which naturally triggers at/near end of page).
-
----
-
-## Verification
-
-- `npx tsc --noEmit` clean.
-- Manual: 
-  - General + middle row → splits silently.
-  - Page + last row → dialog appears; confirm cascades within page only.
-  - Surah/global → dialog appears with row count; progress bar visible briefly.
-  - Cancel → no change.
-
-## Out of scope
-- Undo/redo behavior beyond what `patchLocal`/`reflowFrom` already capture.
-- Back-fill on Backspace (covered by Plan #8).
-- Persisting threshold preference.
+```css
+@font-face {
+  font-family: "TajweedSymbols";
+  src: url("/fonts/tajweed-symbols.woff2") format("woff2");
+  font-display: block;
+  font-weight: normal;
+  font
