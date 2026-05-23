@@ -752,3 +752,104 @@ function InlineTextEditor({
 
 // Re-export to satisfy legacy types if any
 export type { LocalOverride };
+
+// ──────────────────────────────────────────────────────────────────────────────
+// WordSpans — per-word rendering inside the Arabic band
+// ──────────────────────────────────────────────────────────────────────────────
+import { splitArabicWords } from "@/lib/wordSplit";
+
+const WordSpans = memo(function WordSpans({
+  text,
+  pageId,
+  rowIndex,
+  interactive,
+  fallbackFontPx,
+  fallbackTracking,
+}: {
+  text: string;
+  pageId: string;
+  rowIndex: number;
+  interactive: boolean;
+  fallbackFontPx: number;
+  fallbackTracking: number;
+}) {
+  const words = splitArabicWords(text);
+  return (
+    <>
+      {words.map((w, idx) => (
+        <span key={idx}>
+          {idx > 0 && " "}
+          <WordSpan
+            word={w}
+            pageId={pageId}
+            rowIndex={rowIndex}
+            wordIndex={idx}
+            interactive={interactive}
+            fallbackFontPx={fallbackFontPx}
+            fallbackTracking={fallbackTracking}
+          />
+        </span>
+      ))}
+    </>
+  );
+});
+
+const WordSpan = memo(function WordSpan({
+  word,
+  pageId,
+  rowIndex,
+  wordIndex,
+  interactive,
+  fallbackFontPx,
+  fallbackTracking,
+}: {
+  word: string;
+  pageId: string;
+  rowIndex: number;
+  wordIndex: number;
+  interactive: boolean;
+  fallbackFontPx: number;
+  fallbackTracking: number;
+}) {
+  const wk = wordLayerKey(pageId, rowIndex, wordIndex);
+  const ov = useOverridesStore((s) => s.local[wk]);
+  const selectionKey = useEditorStore((s) => s.selection?.key);
+  const isSelected = selectionKey === wk;
+
+  const style: React.CSSProperties = {
+    fontSize: ov?.fontPx ?? fallbackFontPx,
+    letterSpacing: ov?.tracking ?? fallbackTracking,
+    color: ov?.color,
+    cursor: interactive ? "pointer" : "inherit",
+    outline: isSelected ? "1px dashed rgba(245,158,11,0.9)" : undefined,
+    outlineOffset: isSelected ? "2px" : undefined,
+    borderRadius: isSelected ? "2px" : undefined,
+    pointerEvents: interactive ? "auto" : "none",
+  };
+
+  return (
+    <span
+      data-sel-kind={interactive ? "word" : undefined}
+      data-sel-key={interactive ? wk : undefined}
+      data-word-index={wordIndex}
+      style={style}
+      onClick={
+        interactive
+          ? (e) => {
+              e.stopPropagation();
+              useEditorStore.getState().setSelection({
+                kind: "word",
+                key: wk,
+                pageId,
+                rowIndex,
+                wordIndex,
+              });
+            }
+          : undefined
+      }
+    >
+      {word}
+    </span>
+  );
+});
+
