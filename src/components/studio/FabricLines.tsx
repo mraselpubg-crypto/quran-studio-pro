@@ -636,6 +636,9 @@ function InlineTextEditor({
       const beforeText = before.trim();
       const afterText = after.trim();
 
+      // Snapshot pre-edit text so cancel can restore it
+      const preEditText = lastSavedRef.current;
+
       commit(beforeText);
       el.textContent = beforeText;
 
@@ -654,6 +657,9 @@ function InlineTextEditor({
       } else {
         scopePageIds = undefined; // global → all
       }
+      const scopedPageList = scopePageIds
+        ? allPages.filter((p) => scopePageIds!.includes(p.id))
+        : allPages;
 
       // 2. Resolve insertion point
       const nextRowIdx = rowIndex + 1;
@@ -682,32 +688,57 @@ function InlineTextEditor({
       const nextExisting = base.localMap[tLk]?.text ?? tRowFallback;
       const combined = nextExisting ? afterText + " " + nextExisting : afterText;
 
-      // 4. Estimate affected rows
-      const targetPageList = scopePageIds
-        ? allPages.filter((p) => scopePageIds!.includes(p.id))
-        : allPages;
-      const startIdx = targetPageList.findIndex((p) => p.id === targetPageId);
-      let estimatedRows = 0;
-      if (startIdx >= 0) {
-        for (let i = startIdx; i < targetPageList.length; i++) {
-          const rowCount = targetPageList[i].lines?.length ?? 0;
-          estimatedRows += i === startIdx ? Math.max(0, rowCount - targetRowIdx) : rowCount;
-        }
+      // 4. Dry-run cascade plan to detect cross-page / cross-surah impact
+      const plan = planCascade({
+        startPageId: targetPageId,
+        startRowIndex: targetRowIdx,
+        newCurrentText: nextExisting ? "" : "", // start row will be set by reflowFrom from carry
+        pushedText: combined,
+        layer,
+        allPages: scopedPageList,
+        localMap: base.localMap,
+        layerKeyFn: base.layerKeyFn,
+        fontFamily: base.fontFamily,
+        fontSize: base.fontSize,
+        availableWidth: base.availableWidth,
+        surahPageIds: base.surahPageIds,
+      });
+
+      const runReflow = () =>
+        reflowFrom({
+          ...base,
+          surahPageIds: scopePageIds,
+          startPageId: targetPageId,
+          startRowIndex: targetRowIdx,
+          startOverflow: combined,
+        });
+
+      const cancelEdit = () => {
+        // Restore the start row to its pre-edit text
+        useOverridesStore.getState().patchLocal(lk, { text: preEditText });
+        lastSavedRef.current = preEditText;
+        if (ref.current) ref.current.textContent = preEditText;
+      };
+
+      // Crosses page or surah → show confirmation dialog
+      if (plan.crossesPage || plan.crossesSurah) {
+        useEditorStore.getState().setPendingReflow({
+          crossesPage: plan.crossesPage,
+          crossesSurah: plan.crossesSurah,
+          affectedPages: plan.affectedPages,
+          confirm: runReflow,
+          cancel: cancelEdit,
+        });
+        return;
       }
 
-      // 5. Guarded execution
+      // Same-page change — apply through existing large-change guard
+      // (still gates surah/global edits or >20-row impacts).
       requestGuarded({
         scope,
-        estimatedRows,
+        estimatedRows: plan.rowUpdates.length,
         label: "এন্টার কী প্রয়োগ হচ্ছে…",
-        action: () =>
-          reflowFrom({
-            ...base,
-            surahPageIds: scopePageIds,
-            startPageId: targetPageId,
-            startRowIndex: targetRowIdx,
-            startOverflow: combined,
-          }),
+        action: runReflow,
       });
       return;
     }
