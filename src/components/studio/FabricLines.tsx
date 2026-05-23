@@ -757,7 +757,6 @@ export type { LocalOverride };
 // ──────────────────────────────────────────────────────────────────────────────
 // WordSpans — per-word rendering inside the Arabic band
 // ──────────────────────────────────────────────────────────────────────────────
-import { splitArabicWords } from "@/lib/wordSplit";
 
 const WordSpans = memo(function WordSpans({
   text,
