@@ -180,7 +180,7 @@ const FabricRow = memo(function FabricRow({
   const rowTy = rOv?.dy ?? 0;
   const rowSymbolPx = Math.round((rowFontPx / ARABIC_FONT_PX) * SYMBOL_FONT_PX);
 
-  const lkSy = layerKey(pageId, i, "symbol");
+  const lkSy = sLk;
   const isFlashing =
     focusedRowKey === rk ||
     focusedRowKey === aLk ||
@@ -201,6 +201,7 @@ const FabricRow = memo(function FabricRow({
   const isArabicEditing = isTypeTool && selectionKey === aLk && selectionPageId === pageId;
 
   // Bangla layer
+  const bDy = bOv?.dy ?? 0;
   const bFontPx = bOv?.fontPx ?? gBangla;
   const bLeading = bOv?.leading ?? 1.1;
   const bTracking = bOv?.tracking ?? 0;
@@ -210,6 +211,9 @@ const FabricRow = memo(function FabricRow({
   const bAlign = (bOv?.align ?? "justify") as React.CSSProperties["textAlign"];
   const bText = bOv?.text ?? slot.bangla ?? "";
   const isBanglaEditing = isTypeTool && selectionKey === bLk && selectionPageId === pageId;
+
+  // Symbol layer dy
+  const sDy = sOv?.dy ?? 0;
 
   return (
     <div
