@@ -26,9 +26,12 @@ import {
   planCascade,
   type LayerKind,
 } from "@/lib/textReflow";
+import { effectiveReflowScope } from "@/lib/reflowScope";
 import { splitArabicWords } from "@/lib/wordSplit";
 import { useLargeChangeGuard } from "@/hooks/useLargeChangeGuard";
 import { ScopeImpactWarningDialog } from "./ScopeImpactWarningDialog";
+import { toast } from "sonner";
+
 
 
 export type FabricLine = {
