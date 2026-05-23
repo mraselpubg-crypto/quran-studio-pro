@@ -333,7 +333,14 @@ const FabricRow = memo(function FabricRow({
               ref={arabicSpanRef}
               style={{ display: "inline-block", width: "100%", textAlign: aAlign, textAlignLast: "justify" }}
             >
-              {aText}
+              <WordSpans
+                text={aText}
+                pageId={pageId}
+                rowIndex={i}
+                interactive={isTypeTool}
+                fallbackFontPx={aFontPx}
+                fallbackTracking={aTracking}
+              />
             </span>
           )
         )}
