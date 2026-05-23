@@ -4,7 +4,7 @@ import {
   Link2, RotateCcw, ScanLine, Type, Move
 } from "lucide-react";
 import { useEditorStore, type SelectionScope } from "@/state/editorStore";
-import { useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped } from "@/state/overridesStore";
+import { useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped, effectiveScope } from "@/state/overridesStore";
 import { useHistoryStore, relativeTime } from "@/state/historyStore";
 import { useReflowStore } from "@/state/reflowStore";
 import { useLinkingStore } from "@/state/linkingStore";
@@ -280,7 +280,10 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
     if (!isLocalScope) {
       setGlobal(k, v);
     } else {
-      void patchScoped(selKey!, { [localField!]: v } as never, scope);
+      void (async () => {
+        const eff = await effectiveScope(scope, selection?.layerKind ?? null);
+        void patchScoped(selKey!, { [localField!]: v } as never, eff);
+      })();
     }
   };
 
@@ -289,7 +292,10 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
     if (!isLocalScope) {
       setGlobal(k, undefined);
     } else {
-      void patchScoped(selKey!, { [localField!]: undefined } as never, scope);
+      void (async () => {
+        const eff = await effectiveScope(scope, selection?.layerKind ?? null);
+        void patchScoped(selKey!, { [localField!]: undefined } as never, eff);
+      })();
     }
   };
 
@@ -326,7 +332,12 @@ function LocalFields({ color }: { color: string }) {
   const scope = useEditorStore((s) => s.scope);
   const local = useOverridesStore((s) => selection ? s.local[selection.key] : undefined);
   if (!selection) return <div className="text-[10px] text-neutral-600 rounded bg-neutral-900/50 p-2 text-center">ট্রান্সফর্ম করার জন্য সারি নির্বাচন করুন</div>;
-  const apply = (patch: Record<string, unknown>) => { void patchScoped(selection.key, patch as never, scope); };
+  const apply = (patch: Record<string, unknown>) => {
+    void (async () => {
+      const eff = await effectiveScope(scope, selection.layerKind ?? null);
+      void patchScoped(selection.key, patch as never, eff);
+    })();
+  };
   return (
     <div className="grid grid-cols-2 gap-3">
       {(["dx", "dy"] as const).map((f) => (
@@ -595,7 +606,14 @@ function CharacterPanel({ selKey }: { selKey: string }) {
   const baseline = ov.baseline ?? 0;
   const align    = ov.align    ?? "justify";
 
-  const set = (k: string, v: number | string) => { void patchScoped(selKey, { [k]: v } as never, scope); };
+  // selKey looks like "layer:<pageId>:<rowIdx>:<arabic|bangla|symbol>"
+  const layerFromKey = (selKey.split(":")[3] ?? null) as "arabic" | "bangla" | "symbol" | null;
+  const set = (k: string, v: number | string) => {
+    void (async () => {
+      const eff = await effectiveScope(scope, layerFromKey);
+      void patchScoped(selKey, { [k]: v } as never, eff);
+    })();
+  };
 
 
   const ALIGN_OPTIONS = [

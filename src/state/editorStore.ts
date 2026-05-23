@@ -30,6 +30,17 @@ export type Selection = {
 /** Back-compat alias */
 export type Scope = "global" | "local";
 
+/** Pending cross-page reflow plan awaiting user confirmation. */
+export type PendingReflow = {
+  crossesPage: boolean;
+  crossesSurah: boolean;
+  affectedPages: number;
+  /** Apply the reflow. Mounted dialog calls this on "হ্যাঁ". */
+  confirm: () => void;
+  /** Optional rollback if the user cancels. */
+  cancel?: () => void;
+};
+
 type EditorState = {
   editMode: boolean;
   activeTool: ActiveTool;
@@ -46,6 +57,8 @@ type EditorState = {
   focusedRowKey: string | null;
   /** Set of surah numbers currently expanded in the sidebar */
   expandedSurahs: Set<number>;
+  pendingReflow: PendingReflow | null;
+  setPendingReflow: (p: PendingReflow | null) => void;
   toggleSurah: (n: number) => void;
   expandSurah: (n: number) => void;
   setEditMode: (v: boolean) => void;
@@ -77,6 +90,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   navigateToPageId: null,
   focusedRowKey: null,
   expandedSurahs: new Set<number>(),
+  pendingReflow: null,
+  setPendingReflow: (p) => set({ pendingReflow: p }),
 
   toggleSurah: (n) =>
     set((s) => {
