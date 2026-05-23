@@ -598,7 +598,7 @@ function LinkingPanel() {
         ["bangla", "বাংলা লিংক", bangla],
         ["symbol", "প্রতীক লিংক", symbol],
       ] as const).map(([k, label, on]) => {
-        const scopeMeta = SCOPE_META[useEditorStore.getState().scope];
+
         return (
           <label
             key={k}
