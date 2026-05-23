@@ -560,6 +560,7 @@ export function Workspace() {
         </BackgroundProvider>
       </FontProvider>
       <Toaster position="bottom-right" theme="dark" richColors />
+      <CrossPageReflowDialog />
     </>
   );
 }
