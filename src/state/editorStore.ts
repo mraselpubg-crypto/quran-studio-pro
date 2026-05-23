@@ -30,6 +30,17 @@ export type Selection = {
 /** Back-compat alias */
 export type Scope = "global" | "local";
 
+/** Pending cross-page reflow plan awaiting user confirmation. */
+export type PendingReflow = {
+  crossesPage: boolean;
+  crossesSurah: boolean;
+  affectedPages: number;
+  /** Apply the reflow. Mounted dialog calls this on "হ্যাঁ". */
+  confirm: () => void;
+  /** Optional rollback if the user cancels. */
+  cancel?: () => void;
+};
+
 type EditorState = {
   editMode: boolean;
   activeTool: ActiveTool;
