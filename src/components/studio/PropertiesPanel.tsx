@@ -47,7 +47,7 @@ export function PropertiesPanel() {
       )}
 
       {/* ── Sub-Layer Movement Panel (per-row Symbol/Arabic/Bangla dy) ── */}
-      {selection && (selection.kind === "row" || selection.kind === "layer") && (
+      {!isTypeTool && selection && (selection.kind === "row" || selection.kind === "layer") && (
         <SubLayerPanel pageId={selection.pageId} rowIndex={selection.rowIndex} scope={scope} />
       )}
 
@@ -179,16 +179,35 @@ function HistoryTab() {
   const restoreTo = useHistoryStore((s) => s.restoreTo);
   const clear = useHistoryStore((s) => s.clear);
   const reversed = [...entries].reverse();
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
         <span className="text-[10px] font-semibold text-neutral-400">
-          {entries.length} টি পরিবর্তন
+          {entries.length} ধাপ রেকর্ড হয়েছে
         </span>
         {entries.length > 0 && (
-          <button onClick={() => { if (confirm("সব ইতিহাস মুছবেন?")) clear(); }}
-            className="text-[10px] font-medium text-red-500/60 hover:text-red-400">সব মুছুন</button>
+          <>
+            <button onClick={() => setOpen(true)}
+              className="text-[10px] font-medium text-red-500/60 hover:text-red-400">সব মুছুন</button>
+            <AlertDialog open={open} onOpenChange={setOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>সব ইতিহাস মুছবেন?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    আপনি কি সব ইতিহাস মুছতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>বাতিল</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => clear()} className="bg-red-600 hover:bg-red-700 text-white">
+                    হ্যাঁ, মুছুন
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
         )}
       </div>
       {reversed.length === 0 ? (

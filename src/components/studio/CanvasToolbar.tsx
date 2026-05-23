@@ -25,6 +25,10 @@ import type { SelectionScope } from "@/state/editorStore";
 import { useOverridesStore } from "@/state/overridesStore";
 import { useReflowStore } from "@/state/reflowStore";
 import { useHistoryStore, relativeTime, type HistoryEntry, type HistoryPatch } from "@/state/historyStore";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Props = {
   zoom: number;
@@ -71,6 +75,7 @@ export function CanvasToolbar({
   const buildProgress = useReflowStore((s) => s.buildProgress);
   const entries = useHistoryStore((s) => s.entries);
   const [histOpen, setHistOpen] = useState(false);
+  const [clearAlertOpen, setClearAlertOpen] = useState(false);
   const [zoomEditing, setZoomEditing] = useState(false);
   const [zoomInput, setZoomInput] = useState("");
   const zoomInputRef = useRef<HTMLInputElement>(null);
@@ -304,14 +309,28 @@ export function CanvasToolbar({
                   <Clock className="h-3 w-3" />পরিবর্তনের ইতিহাস
                 </div>
                 <button
-                  onClick={() => { 
-                    if (confirm("সব ইতিহাস মুছবেন?")) {
-                      useHistoryStore.getState().clear();
-                      useOverridesStore.temporal.getState().clear();
-                    }
-                  }}
+                  onClick={() => setClearAlertOpen(true)}
                   className="text-[10px] text-neutral-600 hover:text-red-400 transition-colors"
                 >মুছুন</button>
+                <AlertDialog open={clearAlertOpen} onOpenChange={setClearAlertOpen}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>সব ইতিহাস মুছবেন?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        আপনি কি সব ইতিহাস মুছতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>বাতিল</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => {
+                        useHistoryStore.getState().clear();
+                        useOverridesStore.temporal.getState().clear();
+                      }} className="bg-red-600 hover:bg-red-700 text-white">
+                        হ্যাঁ, মুছুন
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
               <div className="max-h-[360px] overflow-y-auto">
                 {recent.length === 0 ? (
