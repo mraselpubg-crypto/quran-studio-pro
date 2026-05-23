@@ -606,7 +606,14 @@ function CharacterPanel({ selKey }: { selKey: string }) {
   const baseline = ov.baseline ?? 0;
   const align    = ov.align    ?? "justify";
 
-  const set = (k: string, v: number | string) => { void patchScoped(selKey, { [k]: v } as never, scope); };
+  // selKey looks like "layer:<pageId>:<rowIdx>:<arabic|bangla|symbol>"
+  const layerFromKey = (selKey.split(":")[3] ?? null) as "arabic" | "bangla" | "symbol" | null;
+  const set = (k: string, v: number | string) => {
+    void (async () => {
+      const eff = await effectiveScope(scope, layerFromKey);
+      void patchScoped(selKey, { [k]: v } as never, eff);
+    })();
+  };
 
 
   const ALIGN_OPTIONS = [
