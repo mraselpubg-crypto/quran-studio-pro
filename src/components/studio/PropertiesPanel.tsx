@@ -299,7 +299,13 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
     if (!isLocalScope) {
       setGlobal(k, v);
     } else {
-      void patchScoped(selKey!, { [localField!]: v } as never, scope);
+      const subLayer = k.startsWith("arabic") ? "arabic" : k.startsWith("bangla") ? "bangla" : k.startsWith("symbol") ? "symbol" : null;
+      const isLinked = subLayer ? useLinkingStore.getState().link[subLayer] : false;
+      if (isLinked) {
+        void patchScoped(selKey!, { [localField!]: v } as never, scope);
+      } else {
+        useOverridesStore.getState().patchLocal(selKey!, { [localField!]: v } as never);
+      }
     }
   };
 
@@ -308,7 +314,13 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
     if (!isLocalScope) {
       setGlobal(k, undefined);
     } else {
-      void patchScoped(selKey!, { [localField!]: undefined } as never, scope);
+      const subLayer = k.startsWith("arabic") ? "arabic" : k.startsWith("bangla") ? "bangla" : k.startsWith("symbol") ? "symbol" : null;
+      const isLinked = subLayer ? useLinkingStore.getState().link[subLayer] : false;
+      if (isLinked) {
+        void patchScoped(selKey!, { [localField!]: undefined } as never, scope);
+      } else {
+        useOverridesStore.getState().patchLocal(selKey!, { [localField!]: undefined } as never);
+      }
     }
   };
 

@@ -1,83 +1,28 @@
-╔══════════════════════════════════════════════════════════════════════════════╗
-║       Studio Al-Qalam — Working Agent Prompt (Plan 12)                     ║
-║       Repo: https://github.com/ohidgazi00003-gif/quran-studio-pro          ║
-║       Branch: main  (ALWAYS এই repo-এ কাজ করো)                            ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+You are acting as the Working Agent (Cursor/Lovable). Your task is to implement a major architectural feature: **Cross-Page/Cross-Surah Text Reflow & Dynamic Linking Interaction**.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-USER'S ROLE (আমার কী করণীয়)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ১. Working Agent (Lovable)-কে এই ফাইলের পুরো লেখাটি (CONTINUE_PROMPT.txt) কপি করে প্রম্পট হিসেবে দিন।
-  ২. এতে সে বুঝতে পারবে যে Plan 11 সম্পূর্ণ হয়েছে এবং এখন তাকে PLAN 12 শুরু করতে হবে।
-  ৩. সে কাজ শেষ করে জানালে, Checker Agent-কে বলবেন ব্রাউজারে ভেরিফাই করতে।
+### Feature Requirements:
 
-RULES (NEVER break):
-  1. Only branch: main. কখনো নতুন branch বানাবে না।
-  2. git pull origin main → কাজ → git add -A && git commit -m "..." && git push origin main
-  3. একটাই commit per loop। Force push নিষেধ।
-  4. Lovable auto-generated files ছোঁবে না।
-  5. প্রতিটি commit-এর আগে: npx tsc --noEmit (exit 0) + npm run build (exit 0)
+**1. Dynamic Linking Application (Based on Scope & Tool):**
+When the user has a specific scope selected (e.g., General, Page, Surah, Global) and they interact with ANY of the 3 text layers (Arabic, Bangla, Symbol) using either the Selection Tool (Move) or the Type Tool:
+- If the **Linking Switch** is ON, the modification (movement, styling, typing) must automatically propagate and apply to all linked lines based on the selected scope. 
+- Ensure that the scope selection correctly filters which lines get affected dynamically as the user works.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 1 — Repo sync
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**2. Interactive Text Reflow (Line Breaking & Overflow):**
+This is the core complex feature. The user must be able to use the Type Tool to edit text dynamically with cascading reflow:
+- If the user places the cursor in the middle of a line (e.g., the last ayah of Surah Fatiha on Page 1) and presses `Enter`, the line must break, pushing the text after the cursor to the next line.
+- If they press `Enter` again, it should create an empty line, pushing the subsequent text further down.
+- **Cross-Page Cascading:** If the pushed text exceeds the maximum line capacity for the current page, the overflowing line(s) MUST automatically move to the **Next Page**.
+- **Cross-Surah Cascading:** If the overflow reaches a Surah boundary, it must correctly affect the subsequent Surah's layout.
 
-  git pull origin main
-  npm install
-  npx tsc --noEmit    # must exit 0
-  npm run build       # must exit 0
+**3. Reflow Confirmation Dialog (CRITICAL UX):**
+Because cross-page and cross-surah reflows are destructive and can alter the layout of the entire book, you MUST implement a confirmation mechanism:
+- Whenever a user action (like pressing Enter or pasting text) causes a line to overflow and move to **another page** or affect **another Surah**, you must intercept this action and show a native React confirmation modal (e.g., using Radix UI `AlertDialog`).
+- **Dialog Message Example:** "এই পরিবর্তনটির ফলে কিছু টেক্সট পরবর্তী পেজ বা সূরায় চলে যাচ্ছে। আপনি কি নিশ্চিত যে আপনি লেআউট পরিবর্তন করতে চান?" (This change causes some text to overflow to the next page/surah. Are you sure you want to alter the layout?)
+- If the user confirms, apply the cascading reflow algorithm across the pages. If they cancel, abort the text insertion/line break.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CURRENT VERIFIED STATE (2026-05-23)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+### Implementation Guidelines:
+- You will likely need to heavily modify or utilize `src/state/reflowStore.ts` and `src/state/editorStore.ts` to support this page-to-page data movement algorithm.
+- Ensure the state updates correctly preserve the Symbol, Arabic, and Bangla alignment for the reflowed lines.
+- Write robust logic for the cascading effect so that pushing one line to Page 2 pushes the last line of Page 2 to Page 3, and so on, recursively if needed.
 
-  Plan 10 (Per-Word Typography)         → ✅ Done
-  Plan 11 (In-App Confirm, Linking)     → ✅ Done
-  Plan 12 (Export Engine - PDF/PNG)     → ❌ Not started  ← CURRENT TASK
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PLAN 12 — Advanced Export Engine (PDF & Image Generation) [CURRENT TASK]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Goal:
-  Provide the ability to export beautifully typeset Quran pages into high-resolution, 
-  print-ready PDFs and PNGs, preserving the Tajweed symbols, text colors, and 
-  custom spacing exactly as seen in the editor.
-
-Implementation Requirements:
-
-1. Dependencies Installation:
-   - Install `html2canvas` এবং `jspdf` package দুটি। 
-   - `npm install html2canvas jspdf` (অথবা dom-to-image).
-
-2. UI Additions (TopBar.tsx):
-   - Editor mode-এ "💾 সেভ" বাটনটির ঠিক বাঁ পাশে একটি "📥 এক্সপোর্ট" (Export) বাটন যোগ করো।
-   - বাটনটিতে ক্লিক করলে একটি Dropdown মেনু আসবে।
-   - মেনুতে দুটি অপশন থাকবে: 
-     a) "বর্তমান পেজ এক্সপোর্ট (PNG)"
-     b) "সম্পূর্ণ সূরা এক্সপোর্ট (PDF)"
-
-3. Export Mechanism & Logic (`src/lib/exportUtils.ts`):
-   - একটি নতুন ফাইল `exportUtils.ts` তৈরি করো।
-   - **PNG Export:** `html2canvas` ব্যবহার করে বর্তমান ক্যানভাসের (`.fabric-lines-container` বা মূল আর্টবোর্ড) একটি স্ন্যাপশট নিয়ে ব্রাউজারে ডাউনোলোডের ব্যবস্থা করো।
-   - **PDF Export:** বর্তমান পেজটিকে (বা সূরার পেজগুলোকে) PNG-তে কনভার্ট করে `jsPDF`-এর মাধ্যমে একটি PDF ফাইলে যুক্ত করে ডাউনলোড করো।
-
-4. Loading State & Toast:
-   - Export প্রসেসিং হতে কয়েক সেকেন্ড সময় লাগতে পারে, তাই ক্লিক করার সাথে সাথে একটি Toast দেখাবে: "⏳ এক্সপোর্ট প্রস্তুত হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন..."
-   - Export সফল হলে Success Toast দেখাবে: "✅ এক্সপোর্ট সফলভাবে সম্পন্ন হয়েছে!"
-
-ACCEPTANCE CRITERIA:
-  ✓ `TopBar.tsx`-এ এক্সপোর্ট বাটন দেখা যাচ্ছে।
-  ✓ PNG অপশনে ক্লিক করলে সুন্দর একটি ইমেজ ডাউনলোড হচ্ছে যেখানে তাজবীদের রং ঠিকঠাক আছে।
-  ✓ npx tsc --noEmit exits 0
-  ✓ npm run build exits 0
-
-Commit: "feat(Plan12): advanced export engine for PDF and PNG"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PENDING AFTER PLAN 12
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Plan 13 — Audio Sync & Playback (তেলাওয়াত সিঙ্ক)
-  - Audio Player Widget
-  - Word-level highlighting during playback
+Please review the current state management architecture and implement this feature comprehensively.
