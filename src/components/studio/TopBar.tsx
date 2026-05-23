@@ -142,14 +142,10 @@ export function TopBar({ totalPages, totalAyat }: { totalPages: number; totalAya
             active={editMode}
             onClick={() => setEditMode(true)}
           />
-          {/* Auto-save indicator */}
-          {editMode && hasNewChanges && (
-            <span className="ml-2 flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-emerald-500/30">
-              <CheckCircle2 className="h-2.5 w-2.5" />
-              অটো-সেভ
-            </span>
-          )}
+          {/* Save button + auto-save (editor mode only) */}
+          {editMode && <SaveControl />}
         </div>
+
 
         {/* Right stats + actions */}
         <div className="flex items-center gap-2">
