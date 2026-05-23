@@ -680,6 +680,17 @@ function InlineTextEditor({
       const base = getReflowBase();
       const allPages = base.allPages;
 
+      // Link OFF for this layer → Enter cannot push text across rows.
+      if (!base.cascade) {
+        // Restore split text into a single line and warn.
+        useOverridesStore.getState().patchLocal(lk, { text: `${beforeText} ${afterText}`.trim() });
+        lastSavedRef.current = `${beforeText} ${afterText}`.trim();
+        if (ref.current) ref.current.textContent = lastSavedRef.current;
+        toast.warning("লিংক বন্ধ — Enter দিয়ে অন্য সারিতে যাবে না", { id: `link-off-enter-${lk}` });
+        return;
+      }
+
+
       // 1. Scope → target page IDs
       let scopePageIds: string[] | undefined;
       if (scope === "general" || scope === "page") {
