@@ -32,31 +32,56 @@ export function measureCharCenter(
   layer: HTMLElement,
   charIndex: number,
 ): number | null {
-  const node = span.firstChild;
-  if (!node || node.nodeType !== Node.TEXT_NODE) return null;
-  const text = node.nodeValue ?? "";
-  if (charIndex < 0 || charIndex >= text.length) return null;
+  // Find the text node and local offset corresponding to the absolute charIndex.
+  let currentOffset = 0;
+  let targetNode: Text | null = null;
+  let localIndex = 0;
+
+  function traverse(node: Node): boolean {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = node.nodeValue?.length ?? 0;
+      if (charIndex >= currentOffset && charIndex < currentOffset + len) {
+        targetNode = node as Text;
+        localIndex = charIndex - currentOffset;
+        return true; // found
+      }
+      currentOffset += len;
+    } else {
+      for (const child of node.childNodes) {
+        if (traverse(child)) return true;
+      }
+    }
+    return false;
+  }
+
+  traverse(span);
+
+  if (!targetNode) return null;
+  // targetNode is Text, so nodeValue is guaranteed non-null; cast for TS flow
+  const text: string = (targetNode as Text).nodeValue ?? "";
+
+
 
   try {
     const range = document.createRange();
-    const end = clusterEnd(text, charIndex);
-    range.setStart(node, charIndex);
-    range.setEnd(node, end);
+    const end = clusterEnd(text, localIndex);
+    range.setStart(targetNode, localIndex);
+    range.setEnd(targetNode, end);
     let rect = bestRect(range);
 
     // Fallback: expand to include the previous cluster (helps with ligatures
     // that collapse the base char into an adjacent shape).
-    if (!rect && charIndex > 0) {
+    if (!rect && localIndex > 0) {
       const r2 = document.createRange();
-      r2.setStart(node, Math.max(0, charIndex - 1));
-      r2.setEnd(node, end);
+      r2.setStart(targetNode, Math.max(0, localIndex - 1));
+      r2.setEnd(targetNode, end);
       rect = bestRect(r2);
     }
     // Fallback: extend to the next cluster.
     if (!rect && end < text.length) {
       const r3 = document.createRange();
-      r3.setStart(node, charIndex);
-      r3.setEnd(node, clusterEnd(text, end));
+      r3.setStart(targetNode, localIndex);
+      r3.setEnd(targetNode, clusterEnd(text, end));
       rect = bestRect(r3);
     }
     if (!rect) return null;

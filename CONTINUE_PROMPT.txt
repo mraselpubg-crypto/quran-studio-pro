@@ -1,15 +1,8 @@
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║       Studio Al-Qalam — Checker & Next-Plan Agent Prompt                   ║
+║       Studio Al-Qalam — Working Agent Prompt (Plan 11)                     ║
 ║       Repo: https://github.com/ohidgazi00003-gif/quran-studio-pro          ║
 ║       Branch: main  (ALWAYS এই repo-এ কাজ করো)                            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-USER'S ROLE (আমার কী করণীয়) 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ১. Working Agent (Lovable)-কে এই ফাইলের পুরো লেখাটি (CONTINUE_PROMPT.txt) কপি করে প্রম্পট হিসেবে দিন।
-  ২. এতে সে বুঝতে পারবে যে Plan 10 (Per-Word Typography) সম্পূর্ণ হয়েছে এবং এখন তাকে PLAN 11 শুরু করতে হবে।
-  ৩. সে কাজ শেষ করে জানালে, আমাকে (Checker Agent) বলবেন ব্রাউজারে ভেরিফাই করতে।
 
 RULES (NEVER break):
   1. Only branch: main. কখনো নতুন branch বানাবে না।
@@ -31,15 +24,99 @@ STEP 1 — Repo sync
 CURRENT VERIFIED STATE (2026-05-23 — verified by Antigravity checker)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Phase 5 (Surah Grouping)       → ✅ Done
-  Phase 6 (Keyboard Shortcuts)   → ✅ Done
-  Plan 10 (Per-Word Typography)  → ✅ Done (Colors/spacing per word working)
-  
-  PLAN 11 (TBD)                  → ❌ Not started  ← NEXT TASK
+  Phase 5 (Surah Grouping)              → ✅ Done
+  Phase 6 (Keyboard Shortcuts Alt+1-4)  → ✅ Done
+  Plan 10 (Per-Word Typography)         → ✅ Done
+  Plan 11 (Features below)              → ❌ Not started  ← CURRENT TASK
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PLAN 11 — (To Be Decided) [CURRENT TASK]
+PLAN 11 — UI/UX Improvements (৪টি feature) [CURRENT TASK]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-অপেক্ষা করুন: User (Rasel) পরবর্তী কাজ (Plan 11) সম্পর্কে বিস্তারিত নির্দেশনা দেবেন।
-তার নির্দেশনা না পাওয়া পর্যন্ত এই ফাইলে নতুন কোনো কাজ শুরু করবেন না।
+## Feature 1: "সব রিসেট করুন" — App-Internal Confirm Dialog
+
+**সমস্যা:** এখন `PropertiesPanel.tsx`-এ `resetAll` বাটনে ক্লিক করলে browser-native `window.confirm()` ডায়ালগ দেখায়।
+**কাজ:** Browser `confirm()` সরিয়ে দিয়ে app-এর নিজস্ব সুন্দর Bengali-language confirmation dialog দেখাতে হবে।
+
+Implementation:
+  - একটি ছোট in-app `ConfirmDialog` component তৈরি করো (অথবা যদি `ScopeImpactWarningDialog` এর মতো কোনো existing dialog থাকে, সেটা reuse করো)।
+  - Dialog-এর text: "আপনি কি সব সেটিং রিসেট করতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।"
+  - দুটি বাটন: "হ্যাঁ, রিসেট করুন" (red/destructive) এবং "বাতিল" (neutral)
+  - "হ্যাঁ" বাটনে ক্লিক করলেই `resetAll()` ও `rebuild()` call হবে।
+  - Dialog টি scope-aware হবে: বর্তমান `scope` (সাধারণ/পেজ/সূরা/সকল) অনুযায়ী dialog-এ লেখা পাল্টাবে।
+    * `general`: "এই নির্বাচনের সেটিং রিসেট হবে"
+    * `page`: "এই পেজের সব সেটিং রিসেট হবে"
+    * `surah`: "এই সূরার সব সেটিং রিসেট হবে"
+    * `global`: "সম্পূর্ণ মুসহাফের সব সেটিং রিসেট হবে ⚠️"
+
+---
+
+## Feature 2: Per-Row 3-Layer Movement (Symbol / Arabic / Bengali আলাদাভাবে move)
+
+**বর্তমান অবস্থা:** এখন একটি row সিলেক্ট করলে পুরো row-টি একসাথে move হয়।
+**কাজ:** প্রতিটি row-এর ভেতরে তিনটি আলাদা sub-layer থাকবে যেগুলো independently move করা যাবে।
+
+Implementation:
+  - সিলেক্টেড row-এর Properties Panel-এ "সাব-লেয়ার" section যোগ করো।
+  - তিনটি toggle/tab থাকবে: 🔣 প্রতীক (Symbol) | ع আরবি (Arabic) | ক বাংলা (Bengali)
+  - যে sub-layer-টি active/selected সেটির Y-offset slider শুধু সেই sub-layer-কে move করবে।
+  - Data model: এই Y-offset গুলো `useOverridesStore`-এ `rowOverride` হিসেবে save হবে।
+    Store key format: `"sub:${pageId}:${rowIndex}:arabic:dy"`, `"sub:${pageId}:${rowIndex}:bengali:dy"`, `"sub:${pageId}:${rowIndex}:symbol:dy"`
+  - `FabricLines.tsx`-এ এই overrides পড়ে প্রতিটি sub-layer-এর `top` style-এ apply করো।
+  - Move tool (V) active থাকলে এবং row selected থাকলে Properties Panel-এ এই section দেখাবে।
+
+---
+
+## Feature 3: Paragraph Linking System (Scope-aware linking)
+
+**কাজ:** Properties Panel-এ একটি "লিংকিং" section যোগ করো যা দিয়ে Arabic, Bengali এবং Symbol layer-গুলো একসাথে link করা যাবে — অর্থাৎ একটা পরিবর্তন করলে linked layer-গুলোতেও propagate হবে।
+
+Implementation:
+  - Properties Panel-এ "প্যারাগ্রাফ লিংকিং" section যোগ করো।
+  - তিনটি toggle switch:
+    * 🔗 আরবি লিংক: অন থাকলে আরবি Y-offset সব linked rows-এ sync হবে
+    * 🔗 বাংলা লিংক: অন থাকলে বাংলা Y-offset সব linked rows-এ sync হবে
+    * 🔗 প্রতীক লিংক: অন থাকলে Symbol Y-offset সব linked rows-এ sync হবে
+  - "সব লিংক" বাটন দিয়ে সব একসাথে toggle করা যাবে।
+  - Scope অনুযায়ী propagation:
+    * `general` → শুধু বর্তমান row
+    * `page` → একই পেজের সব rows
+    * `surah` → একই সূরার সব rows
+    * `global` → সব rows
+
+---
+
+## Feature 4: Save Button with Auto-Save Toggle
+
+**কাজ:** Preview/Editor mode switcher (top-center header)-এর পাশে একটি "সেভ" button যোগ করো যেটা শুধু Editor mode-এ দেখাবে।
+
+Implementation:
+  a) **Save Button:**
+     - "💾 সেভ" বাটন header-এ রাখো (Preview/Editor toggle-এর পাশে)।
+     - এটি শুধু Editor mode-এ visible হবে।
+     - ক্লিক করলে `useOverridesStore` এবং `useEditorStore`-এর current state localStorage-এ save করবে।
+     - সফলভাবে save হলে একটি success toast দেখাবে: "✅ সেভ সম্পন্ন হয়েছে"
+     - Unsaved changes থাকলে button-এ একটি yellow dot indicator থাকবে।
+
+  b) **Save Dropdown (submenu):**
+     - Save button-এর পাশে একটি small chevron/arrow button থাকবে।
+     - সেটা ক্লিক করলে একটি dropdown menu খুলবে।
+     - Dropdown-এ থাকবে:
+       * "🔄 অটো সেভ" toggle switch — অন করলে প্রতি ৩০ সেকেন্ড পর পর auto-save হবে।
+       * "📋 ম্যানুয়াল সেভ" বাটন
+     - Auto-save state `localStorage.setItem('autoSave', 'true/false')` দিয়ে persist করো।
+     - Auto-save চালু থাকলে header-এ "অটো সেভ চালু" ছোট label দেখাবে।
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ACCEPTANCE CRITERIA (সব feature-এর জন্য)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✓ "সব রিসেট করুন" বাটনে browser confirm() আর দেখায় না — in-app dialog দেখায়
+  ✓ Row সিলেক্ট → Move Tool → Properties-এ Symbol/Arabic/Bengali আলাদা slider দেখায়
+  ✓ Linking toggle চালু করলে একটি layer পরিবর্তনে scope অনুযায়ী সব row update হয়
+  ✓ Editor mode-এ header-এ "সেভ" button দেখায়, Preview mode-এ লুকিয়ে যায়
+  ✓ Save dropdown-এ Auto-save switch কাজ করে
+  ✓ npx tsc --noEmit exits 0
+  ✓ npm run build exits 0
+
+Commit: "feat(Plan11): in-app reset dialog, sub-layer movement, linking system, save button"

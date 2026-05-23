@@ -136,6 +136,8 @@ export function TopSymbolLayer({
   // Let the icon grow to ~95% of the symH band, capped by fontSize and band height.
   const symbolH = Math.max(10, Math.min(15, height - 2, Math.round(height * 0.95)));
 
+  console.log("TopSymbolLayer rendered for:", { effectiveArabic, matches: matches.length, positions: positions.length, height, symbolH });
+
   return (
     <div
       ref={layerRef}
@@ -174,7 +176,7 @@ export function TopSymbolLayer({
               fontSize: sizePx,
               lineHeight: `${sizePx}px`,
               textAlign: "center",
-              color: "currentColor",
+              color: "#ef4444", // User requested all symbols to be red
               display: "block",
               pointerEvents: editMode ? "auto" : "none",
               cursor: editMode ? "grab" : "default",
