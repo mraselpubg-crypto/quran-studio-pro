@@ -26,6 +26,8 @@ export type LocalOverride = {
   align?: "left" | "center" | "right" | "justify";
   /** User-edited text content override */
   text?: string;
+  /** Per-element color (used by word-level overrides; CSS color string) */
+  color?: string;
 };
 
 /** Stable keys — logical (verse-based) for words/symbols, page-bound for rows.
@@ -39,6 +41,12 @@ export type LocalKey = string;
 /** Helper to build a sub-layer key (arabic | bangla | symbol) */
 export const layerKey = (pageId: string, rowIndex: number, layer: "arabic" | "bangla" | "symbol") =>
   `layer:${pageId}:${rowIndex}:${layer}`;
+
+/** Per-word override key. Note: distinct from the legacy `wordKey(surah,ayah,...)`
+ *  helper below — this format is page+row+wordIndex and matches the renderer. */
+export const wordLayerKey = (pageId: string, rowIndex: number, wordIndex: number): LocalKey =>
+  `word:${pageId}:${rowIndex}:${wordIndex}`;
+
 
 
 
@@ -205,13 +213,16 @@ export const symbolKey = (
  */
 import type { SelectionScope } from "./editorStore";
 
-function parseLayerKey(key: string): { kind: "layer" | "row"; pageId: string; rowIndex: number; layer?: string } | null {
+function parseLayerKey(key: string): { kind: "layer" | "row" | "word"; pageId: string; rowIndex: number; layer?: string; wordIndex?: number } | null {
   const parts = key.split(":");
   if (parts[0] === "layer" && parts.length >= 4) {
     return { kind: "layer", pageId: parts[1]!, rowIndex: Number(parts[2]), layer: parts[3] };
   }
   if (parts[0] === "row" && parts.length >= 3) {
     return { kind: "row", pageId: parts[1]!, rowIndex: Number(parts[2]) };
+  }
+  if (parts[0] === "word" && parts.length >= 4) {
+    return { kind: "word", pageId: parts[1]!, rowIndex: Number(parts[2]), wordIndex: Number(parts[3]) };
   }
   return null;
 }
@@ -238,8 +249,31 @@ export async function getScopedLayerKeys(
     targetPages = distribution.filter((d) => d.surah === srcSurah).map((d) => d.pageId);
   else /* global */ targetPages = pages.map((p) => p.id);
 
-  // For each target page, enumerate row indices and build matching keys.
   const out: LocalKey[] = [];
+
+  if (parsed.kind === "word") {
+    const { splitArabicWords } = await import("@/lib/wordSplit");
+    const srcPage = pages.find((p) => p.id === parsed.pageId);
+    const srcRow = srcPage?.lines?.[parsed.rowIndex] as { arabic?: string } | undefined;
+    const srcWords = splitArabicWords(srcRow?.arabic ?? "");
+    const srcWord = srcWords[parsed.wordIndex ?? -1];
+    if (!srcWord) return [representativeKey];
+
+    for (const pid of targetPages) {
+      const page = pages.find((p) => p.id === pid);
+      if (!page) continue;
+      const rows = (page.lines ?? []) as Array<{ arabic?: string }>;
+      for (let r = 0; r < rows.length; r++) {
+        const words = splitArabicWords(rows[r]?.arabic ?? "");
+        for (let w = 0; w < words.length; w++) {
+          if (words[w] === srcWord) out.push(`word:${pid}:${r}:${w}`);
+        }
+      }
+    }
+    return out.length > 0 ? out : [representativeKey];
+  }
+
+  // layer / row branches
   for (const pid of targetPages) {
     const page = pages.find((p) => p.id === pid);
     if (!page) continue;
