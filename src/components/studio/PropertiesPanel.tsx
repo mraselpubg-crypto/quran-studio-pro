@@ -577,7 +577,10 @@ function SubLayerPanel({ pageId, rowIndex, scope }: { pageId: string; rowIndex: 
 
 function LinkingPanel() {
   const { arabic, bangla, symbol, setLink, setAll } = useLinkingStore();
+  const scope = useEditorStore((s) => s.scope);
+  const scopeMeta = SCOPE_META[scope];
   const allOn = arabic && bangla && symbol;
+
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
       <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-violet-400">
