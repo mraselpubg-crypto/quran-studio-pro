@@ -1,0 +1,18 @@
+## ===== PLAN 17 — Active Page Context (NEXT AGENT) =====
+
+Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+
+```
+git pull origin main
+Read: CONTINUE_PROMPT.txt (Plan 17 section) + PLAN17_DESIGN.md
+
+Implement Plan 17. Then follow PLAN_COMPLETION_PROTOCOL.md:
+  - verify (tsc, build, verify-editor.mjs)
+  - push feat(Plan17): ...
+  - update CONTINUE_PROMPT (Plan 17 ✅, Plan 18 stub)
+  - push docs commit
+```
+
+Commit: feat(Plan17): active page context for scoped reset and navigation
+
+===== END =====

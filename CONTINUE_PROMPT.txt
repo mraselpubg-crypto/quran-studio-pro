@@ -4,6 +4,22 @@
 
 ---
 
+## 🧠 AGENT MEMORY RULE (সব এজেন্ট — অবশ্যই)
+
+**একটি Plan শেষ = কোড + verify + push + হ্যান্ডঅ ফাইল আপডেট + আবার push.**
+
+চ্যাটে “done” বললেই হবে না। পরবর্তী এজেন্ট **শুধু এই রিপোর ফাইল** পড়ে শুরু করবে।  
+বিস্তারিত: **`PLAN_COMPLETION_PROTOCOL.md`** — প্রতিটি Plan শেষে সেটা অনুসরণ করো।
+
+| Plan শেষে আপডেট করো |
+|---------------------|
+| `CONTINUE_PROMPT.txt` — ✅ mark + পরের Plan লিখো |
+| `AGENT_README.md` — স্ট্যাটাস টেবিল |
+| `WORKING_AGENT_PROMPT.txt` — পরের Plan নম্বর |
+| প্রয়োজনে `PLAN(N+1)_DESIGN.md` + `PLAN(N+1)_AGENT_PROMPT.txt` |
+
+---
+
 ## 🔗 REPOSITORY (ONLY OFFICIAL REMOTE)
 
 | Item | Value |
@@ -33,10 +49,15 @@
 10. git add -A
 11. git commit -m "feat(PlanXX): …" or "fix(…): …"
 12. git push origin main
-13. Update THIS FILE (mark plan ✅, write NEXT plan) → commit + push again
+13. PLAN COMPLETION PROTOCOL (PLAN_COMPLETION_PROTOCOL.md):
+    - Mark current plan ✅ in THIS FILE
+    - Write NEXT plan tasks in THIS FILE
+    - Update AGENT_README.md + WORKING_AGENT_PROMPT.txt
+14. git commit -m "docs: handoff after PlanXX — PlanYY ready"
+15. git push origin main
 ```
 
-Order when implementing features: **live → check → code → verify → commit → push**
+Order: **live → check → code → verify → commit → handoff files → commit → push**
 
 ---
 
@@ -48,6 +69,7 @@ Order when implementing features: **live → check → code → verify → commi
 | **WORKING_AGENT_PROMPT.txt** | Short agent entry |
 | **CONTINUE_PROMPT.txt** | Master status, plans, rules (THIS FILE) |
 | **PLAN17_DESIGN.md** | Plan 17 design doc |
+| **PLAN_COMPLETION_PROTOCOL.md** | Plan শেষে ফাইল আপডেটের নিয়ম |
 | **AGENT_PROMPT.md** | Legacy v2 — ignore |
 
 ---

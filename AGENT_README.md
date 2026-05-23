@@ -1,7 +1,8 @@
 # Agent Instructions — Quran Studio Pro
 
 > **এই GitHub রিপোই এজেন্টের একমাত্র সোর্স।**  
-> চ্যাটের পুরনো প্রম্পট নয় — নিচের ফাইল পড়ে কাজ করো → verify → **এই রিপোতেই push** করো।
+> চ্যাটের পুরনো প্রম্পট নয় — নিচের ফাইল পড়ে কাজ করো → verify → **এই রিপোতেই push** করো।  
+> **Plan শেষে:** `PLAN_COMPLETION_PROTOCOL.md` অনুযায়ী হ্যান্ডঅফ ফাইল আপডেট — তারপরই ✅।
 
 ---
 
@@ -50,6 +51,7 @@
 | 1 | **WORKING_AGENT_PROMPT.txt** | Copy-paste শুরু |
 | 2 | **CONTINUE_PROMPT.txt** | মাস্টার: Plan, tasks, rules, git |
 | 3 | **PLAN17_DESIGN.md** | Plan 17 architecture |
+| — | **PLAN_COMPLETION_PROTOCOL.md** | Plan done → ফাইল আপডেট নিয়ম |
 | — | **PLAN16_AGENT_PROMPT.txt** | Plan 16 reflow (done — verify/re-implement) |
 | 4 | AGENT_PROMPT.md | Legacy v2 — উপেক্ষা |
 
