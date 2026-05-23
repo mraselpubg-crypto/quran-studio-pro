@@ -1,12 +1,18 @@
 import { useState } from "react";
 import {
   AlignCenter, AlignJustify, AlignLeft, AlignRight, BookOpen, Clock, Globe,
-  RotateCcw, ScanLine, Type, Move
+  Link2, RotateCcw, ScanLine, Type, Move
 } from "lucide-react";
 import { useEditorStore, type SelectionScope } from "@/state/editorStore";
-import { useOverridesStore, type GlobalOverrides, type LocalOverride, patchScoped } from "@/state/overridesStore";
+import { useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped } from "@/state/overridesStore";
 import { useHistoryStore, relativeTime } from "@/state/historyStore";
 import { useReflowStore } from "@/state/reflowStore";
+import { useLinkingStore } from "@/state/linkingStore";
+import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ARABIC_FONT_PX, BANGLA_FONT_PX } from "./FabricLines";
 
 
