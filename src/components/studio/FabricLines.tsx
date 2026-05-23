@@ -150,15 +150,17 @@ const FabricRow = memo(function FabricRow({
   const rk = rowKey(pageId, i);
   const aLk = layerKey(pageId, i, "arabic");
   const bLk = layerKey(pageId, i, "bangla");
+  const sLk = layerKey(pageId, i, "symbol");
 
   const { gArabic, gBangla, gArabicY, gBanglaY, gSymbolY } = useGlobalLayoutValues();
 
-  // Fine-grained: only re-render when this row's three keys change
-  const { rOv, aOv, bOv } = useOverridesStore(
+  // Fine-grained: only re-render when this row's four keys change
+  const { rOv, aOv, bOv, sOv } = useOverridesStore(
     useShallow((s) => ({
       rOv: s.local[rk],
       aOv: s.local[aLk],
       bOv: s.local[bLk],
+      sOv: s.local[sLk],
     })),
   );
 
