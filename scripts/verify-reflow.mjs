@@ -49,8 +49,15 @@ async function verify() {
 
   const arabicLayer = page.locator('[data-layer-kind="arabic"]').first();
   if (await arabicLayer.isVisible().catch(() => false)) {
-    await arabicLayer.click();
+    await arabicLayer.click({ force: true });
     await page.waitForTimeout(800);
+    await page.screenshot({ path: join(ARTIFACTS, "debug-click.png"), fullPage: true });
+  }
+
+  const collapsedHint = page.getByText("ক্লিক করে প্রপার্টিজ দেখুন", { exact: false }).first();
+  if (await collapsedHint.isVisible().catch(() => false)) {
+    await collapsedHint.click();
+    await page.waitForTimeout(500);
   }
 
   const linkLabel = page.getByText("আরবি লিংক", { exact: false }).first();

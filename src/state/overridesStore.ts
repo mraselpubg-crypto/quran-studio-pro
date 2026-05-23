@@ -87,6 +87,32 @@ export const MASTER_DEFAULTS: GlobalOverrides = {
 export let _restoringHistory = false;
 export function setRestoringHistory(v: boolean) { _restoringHistory = v; }
 
+/* Session baseline — captured once when the editor panel is opened.
+ * "Reset All" restores to this state rather than factory MASTER_DEFAULTS.
+ * Not persisted — lives only for the current browser session.
+ */
+let _sessionBaseline: { global: GlobalOverrides; local: Record<string, LocalOverride> } | null = null;
+
+export function captureSessionBaseline() {
+  const s = useOverridesStore.getState();
+  _sessionBaseline = { global: { ...s.global }, local: { ...s.local } };
+}
+
+export function getSessionBaseline() {
+  return _sessionBaseline;
+}
+
+export function resetToSessionBaseline() {
+  if (_sessionBaseline) {
+    useOverridesStore.setState({
+      global: { ...MASTER_DEFAULTS, ..._sessionBaseline.global },
+      local: { ..._sessionBaseline.local },
+    });
+  } else {
+    useOverridesStore.getState().resetAll();
+  }
+}
+
 /* Batch-merge consecutive same-field global changes within 400ms for clean undo steps */
 let _lastGlobalField: string | null = null;
 let _lastGlobalTs = 0;
@@ -165,15 +191,32 @@ export const useOverridesStore = create<OverridesState>()(
         resetAll: () => set({ global: { ...MASTER_DEFAULTS }, local: {} }),
 
         resetScoped: async (scope, ctx) => {
+          const baseline = _sessionBaseline;
+
           if (scope === "global") {
-            get().resetAll();
+            if (baseline) {
+              set({
+                global: { ...MASTER_DEFAULTS, ...baseline.global },
+                local: { ...baseline.local },
+              });
+            } else {
+              get().resetAll();
+            }
             return;
           }
+
           if (scope === "general") {
             if (!ctx.key) return;
-            get().clearLocal(ctx.key);
+            const baselineValue = baseline?.local[ctx.key];
+            set((s) => {
+              const next = { ...s.local };
+              if (baselineValue && Object.keys(baselineValue).length > 0) next[ctx.key!] = { ...baselineValue };
+              else delete next[ctx.key!];
+              return { local: next };
+            });
             return;
           }
+
           const pageId = ctx.pageId;
           if (!pageId) return;
 
@@ -192,10 +235,25 @@ export const useOverridesStore = create<OverridesState>()(
           const pageSet = new Set(targetPageIds);
           set((s) => {
             const next = { ...s.local };
+
             for (const k of Object.keys(next)) {
               const parts = k.split(":");
-              if (parts.length >= 2 && pageSet.has(parts[1]!)) delete next[k];
+              if (parts.length >= 2 && pageSet.has(parts[1]!)) {
+                const baselineValue = baseline?.local[k];
+                if (baselineValue && Object.keys(baselineValue).length > 0) next[k] = { ...baselineValue };
+                else delete next[k];
+              }
             }
+
+            if (baseline) {
+              for (const [k, value] of Object.entries(baseline.local)) {
+                const parts = k.split(":");
+                if (parts.length >= 2 && pageSet.has(parts[1]!) && !(k in next)) {
+                  next[k] = { ...value };
+                }
+              }
+            }
+
             return { local: next };
           });
         },

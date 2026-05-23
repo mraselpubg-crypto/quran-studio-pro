@@ -20,6 +20,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import { useEditorStore } from "@/state/editorStore";
 import type { SelectionScope } from "@/state/editorStore";
 import { useOverridesStore } from "@/state/overridesStore";
@@ -72,8 +73,9 @@ export function CanvasToolbar({
   const redo = () => useOverridesStore.temporal.getState().redo();
   const versesReady = useReflowStore((s) => s.versesReady);
   const rebuilding = useReflowStore((s) => s.rebuilding);
+  const isReflowing = useReflowStore((s) => s.isReflowing);
   const buildProgress = useReflowStore((s) => s.buildProgress);
-  const entries = useHistoryStore((s) => s.entries);
+  const entries = useHistoryStore(useShallow((s) => s.sessionEntries()));
   const [histOpen, setHistOpen] = useState(false);
   const [clearAlertOpen, setClearAlertOpen] = useState(false);
   const [zoomEditing, setZoomEditing] = useState(false);
@@ -198,6 +200,11 @@ export function CanvasToolbar({
           {versesReady && rebuilding && !buildProgress && (
             <span className="flex items-center gap-1 rounded bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-400">
               <span className="h-1.5 w-1.5 animate-spin rounded-full border border-sky-400 border-t-transparent" />রিবিল্ড…
+            </span>
+          )}
+          {versesReady && isReflowing && !buildProgress && !rebuilding && (
+            <span className="flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300">
+              <span className="h-1.5 w-1.5 animate-spin rounded-full border border-amber-400 border-t-transparent" />রিফ্লো হচ্ছে…
             </span>
           )}
         </div>

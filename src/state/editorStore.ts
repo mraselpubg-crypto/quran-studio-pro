@@ -61,6 +61,9 @@ type EditorState = {
   expandedSurahs: Set<number>;
   pendingReflow: PendingReflow | null;
   setPendingReflow: (p: PendingReflow | null) => void;
+  /** Current artboard zoom (0–3 range, 1.0 = 100%). Synced from Workspace. */
+  zoom: number;
+  setZoom: (v: number) => void;
   toggleSurah: (n: number) => void;
   expandSurah: (n: number) => void;
   setEditMode: (v: boolean) => void;
@@ -96,6 +99,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   expandedSurahs: new Set<number>(),
   pendingReflow: null,
   setPendingReflow: (p) => set({ pendingReflow: p }),
+  zoom: 1.0,
+  setZoom: (v) => set({ zoom: v }),
 
   toggleSurah: (n) =>
     set((s) => {

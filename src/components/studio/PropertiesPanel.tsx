@@ -4,9 +4,10 @@ import {
   Link2, RotateCcw, ScanLine, Type, Move
 } from "lucide-react";
 import { useEditorStore, type SelectionScope } from "@/state/editorStore";
-import { useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped, effectiveScope, effectiveScopeForRow } from "@/state/overridesStore";
+import { resetToSessionBaseline, useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped, effectiveScope, effectiveScopeForRow } from "@/state/overridesStore";
 import { useHistoryStore, relativeTime } from "@/state/historyStore";
 import { useReflowStore } from "@/state/reflowStore";
+import { useShallow } from "zustand/react/shallow";
 import { useLinkingStore } from "@/state/linkingStore";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -201,7 +202,7 @@ function ControlsTab({
 
 
 function HistoryTab() {
-  const entries = useHistoryStore((s) => s.entries);
+  const entries = useHistoryStore(useShallow((s) => s.sessionEntries()));
   const restoreTo = useHistoryStore((s) => s.restoreTo);
   const clear = useHistoryStore((s) => s.clear);
   const navigateTo = useEditorStore((s) => s.navigateTo);
@@ -482,7 +483,6 @@ const SCOPE_RESET_TEXT: Record<SelectionScope, string> = {
 function ResetGroup() {
   const resetScoped = useOverridesStore((s) => s.resetScoped);
   const rebuild = useReflowStore((s) => s.rebuild);
-  const pages = useReflowStore((s) => s.pages);
   const scope = useEditorStore((s) => s.scope);
   const selection = useEditorStore((s) => s.selection);
   const [open, setOpen] = useState(false);
@@ -491,10 +491,14 @@ function ResetGroup() {
     setOpen(false);
     useReflowStore.setState({ buildProgress: { label: "রিসেট হচ্ছে…", pct: 50 } });
     void (async () => {
-      await resetScoped(scope, {
-        key: selection?.key,
-        pageId: getContextPageId(),
-      });
+      if (scope === "global") {
+        resetToSessionBaseline();
+      } else {
+        await resetScoped(scope, {
+          key: selection?.key,
+          pageId: getContextPageId(),
+        });
+      }
       rebuild();
       useOverridesStore.temporal.getState().clear();
       useHistoryStore.getState().clear();

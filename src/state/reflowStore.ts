@@ -33,6 +33,8 @@ type ReflowState = {
   status: "idle" | "loading" | "ready";
   /** Null when no build is in progress */
   buildProgress: BuildProgress | null;
+  /** True while a large cross-page cascade is running in the background */
+  isReflowing: boolean;
   signature: string;
   versesReady: boolean;
   rebuilding: boolean;
@@ -40,6 +42,7 @@ type ReflowState = {
   rebuild: () => void;
   /** Optimistic: idle-scheduled single-page rebuild for instant feedback. */
   rebuildPage: (pageId: string) => void;
+  setIsReflowing: (v: boolean) => void;
 };
 
 function computeDistribution(pages: PageData[]): PageDistribution[] {
@@ -102,9 +105,11 @@ export const useReflowStore = create<ReflowState>((set, get) => ({
   distribution: computeDistribution(pagesSync),
   status: "idle",
   buildProgress: null,
+  isReflowing: false,
   signature: "",
   versesReady: false,
   rebuilding: false,
+  setIsReflowing: (v) => set({ isReflowing: v }),
 
   init: async () => {
     if (get().status !== "idle") return;

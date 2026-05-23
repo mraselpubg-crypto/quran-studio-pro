@@ -145,6 +145,60 @@ export function reflowFrom(opts: ReflowOptions): void {
   }
 }
 
+/**
+ * Async version of reflowFrom for large cross-page cascades.
+ * Yields to the browser between page batches (PAGES_PER_CHUNK pages per tick)
+ * to avoid blocking the main thread. Sets isReflowing flag on reflowStore.
+ */
+const PAGES_PER_CHUNK = 3;
+export async function reflowFromAsync(opts: ReflowOptions): Promise<void> {
+  const {
+    startPageId, startRowIndex, startOverflow, layer,
+    allPages, localMap, patchLocal, layerKeyFn,
+    fontFamily, fontSize, availableWidth, surahPageIds,
+  } = opts;
+
+  const { useReflowStore } = await import("@/state/reflowStore");
+  useReflowStore.getState().setIsReflowing(true);
+
+  try {
+    let overflow = startOverflow.trim();
+    const targetPages = surahPageIds
+      ? allPages.filter((p) => surahPageIds.includes(p.id))
+      : allPages;
+    const startPageIdx = targetPages.findIndex((p) => p.id === startPageId);
+    if (startPageIdx === -1) return;
+
+    for (let pi = startPageIdx; pi < targetPages.length && overflow !== ""; pi++) {
+      // Yield to browser between page chunks
+      if ((pi - startPageIdx) % PAGES_PER_CHUNK === 0 && pi > startPageIdx) {
+        await new Promise<void>((r) => setTimeout(r, 0));
+      }
+
+      const page = targetPages[pi]!;
+      const firstRow = pi === startPageIdx ? startRowIndex : 0;
+
+      for (let ri = firstRow; ri < page.lines.length; ri++) {
+        const lk = layerKeyFn(page.id, ri, layer);
+        const existingText =
+          pi === startPageIdx && ri === startRowIndex
+            ? ""
+            : getEffectiveText(page.id, ri, layer, page.lines, localMap, layerKeyFn);
+
+        const combined = existingText ? overflow + " " + existingText : overflow;
+        const { fits, overflow: newOverflow } = splitToFitForLayer(
+          combined, availableWidth, fontFamily, fontSize, layer,
+        );
+        patchLocal(lk, { text: fits });
+        overflow = newOverflow.trim();
+        if (overflow === "") break;
+      }
+    }
+  } finally {
+    useReflowStore.getState().setIsReflowing(false);
+  }
+}
+
 
 export type BackFillOptions = {
   startPageId: string;
@@ -532,7 +586,7 @@ export function reflowLayerText(opts: ReflowLayerTextOptions): ReflowLayerTextRe
 
     const apply = () => {
       patchLocal(_layerKeyFn(pageId, rowIndex, layer), { text: fits });
-      reflowFrom({
+      void reflowFromAsync({
         startPageId: pageId,
         startRowIndex: rowIndex + 1,
         startOverflow: overflow.trim(),

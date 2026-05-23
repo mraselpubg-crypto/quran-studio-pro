@@ -167,19 +167,27 @@ async function restoreToImpl(entries: HistoryEntry[], targetId: string) {
   const targetIdx = entries.findIndex((e) => e.id === targetId);
   if (targetIdx === -1) return;
 
-  const { useOverridesStore, MASTER_DEFAULTS, setRestoringHistory } = await import("./overridesStore");
+  const { useOverridesStore, MASTER_DEFAULTS, setRestoringHistory, getSessionBaseline } = await import("./overridesStore");
   const store = useOverridesStore.getState();
 
   setRestoringHistory(true);
   try {
-    // Reset to base state, then replay all patches up to targetIdx
-    store.resetAll();
+    // Reset to session baseline (or MASTER_DEFAULTS if no session has started yet),
+    // then replay all patches up to targetIdx
+    const baseline = getSessionBaseline();
+    if (baseline) {
+      useOverridesStore.setState({
+        global: { ...MASTER_DEFAULTS, ...baseline.global },
+        local: { ...baseline.local },
+      });
+    } else {
+      store.resetAll();
+    }
     for (let i = 0; i <= targetIdx; i++) {
       const e = entries[i];
       if (e.patch.layerKey) {
         store.patchLocal(e.patch.layerKey, { [e.patch.field]: e.patch.after } as Partial<LocalOverride>);
       } else {
-        // Global field
         const field = e.patch.field as keyof GlobalOverrides;
         const val = e.patch.after as GlobalOverrides[keyof GlobalOverrides];
         store.setGlobal(field, val ?? MASTER_DEFAULTS[field]);
@@ -193,23 +201,29 @@ async function restoreToImpl(entries: HistoryEntry[], targetId: string) {
 /* ─── Store ──────────────────────────────────────────────────────── */
 type HistoryState = {
   entries: HistoryEntry[];
+  /** Timestamp set when the editor panel opens. Entries before this are from prior sessions. */
+  sessionStartTs: number;
   push: (entry: Omit<HistoryEntry, "id" | "ts">) => void;
   /** Replay all patches up to and including entry `id`. */
   restoreTo: (id: string) => void;
   /**
    * Apply a single patch in reverse (preview-previous).
-   * Less instant than the old full-snapshot approach but ~100x smaller memory.
    */
   applyPatchReverse: (patch: HistoryPatch) => void;
   /** @deprecated Use applyPatchReverse. Kept for API compatibility. */
   applySnapshot: (patch: HistoryPatch) => void;
   clear: () => void;
+  /** Called when the editor panel mounts to start a fresh session stack. */
+  markSessionStart: () => void;
+  /** All entries from the current session (ts >= sessionStartTs). */
+  sessionEntries: () => HistoryEntry[];
 };
 
 export const useHistoryStore = create<HistoryState>()(
   persist(
     (set, get) => ({
       entries: [],
+      sessionStartTs: Date.now(),
 
       push: (entry) => {
         const newEntry: HistoryEntry = {
@@ -226,19 +240,33 @@ export const useHistoryStore = create<HistoryState>()(
       },
 
       restoreTo: (id) => {
-        void restoreToImpl(get().entries, id);
+        const { entries, sessionStartTs } = get();
+        void restoreToImpl(entries.filter((e) => e.ts >= sessionStartTs), id);
       },
 
       applyPatchReverse: (patch) => { void applyPatchReverse(patch); },
 
-      // Back-compat: old callers passing a HistorySnapshot get patch-based undo
       applySnapshot: (patch) => { void applyPatchReverse(patch); },
 
       clear: () => set({ entries: [] }),
+
+      markSessionStart: () => {
+        set({ sessionStartTs: Date.now() });
+        // Also clear the Zundo temporal undo/redo stack so it starts fresh
+        void import("./overridesStore").then(({ useOverridesStore }) => {
+          (useOverridesStore.temporal.getState() as { clear?: () => void }).clear?.();
+        });
+      },
+
+      sessionEntries: () => {
+        const { entries, sessionStartTs } = get();
+        return entries.filter((e) => e.ts >= sessionStartTs);
+      },
     }),
     {
       name: "studio-history-v3",
-      // Persist only last 50 entries — patches are tiny so this is safe
+      // Persist only last 50 entries — patches are tiny so this is safe.
+      // sessionStartTs is NOT persisted so each browser session starts fresh.
       partialize: (s) => ({ entries: s.entries.slice(-50) }),
       // Migration: handle both old (v2 full-snapshot) and new (v3 patch) formats
       merge: (persisted, current) => {

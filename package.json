@@ -9,6 +9,9 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "verify:editor": "node scripts/verify-editor.mjs",
+    "verify:reflow": "node scripts/verify-reflow.mjs",
+    "verify:ui": "node scripts/verify-editor.mjs && node scripts/verify-reflow.mjs",
     "format": "prettier --write .",
     "electron:dump-pages": "tsx scripts/dump-pages.mjs > scripts/pages-dump.json",
     "electron:build-db": "node scripts/build-sqlite.cjs",
@@ -81,6 +84,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^1.7.0",
+    "@playwright/mcp": "^0.0.75",
     "@playwright/test": "^1.60.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",

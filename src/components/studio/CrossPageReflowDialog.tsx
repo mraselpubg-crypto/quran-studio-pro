@@ -56,8 +56,8 @@ export function CrossPageReflowDialog() {
         <AlertDialogHeader>
           <AlertDialogTitle>লেআউট পরিবর্তন নিশ্চিত করুন?</AlertDialogTitle>
           <AlertDialogDescription>
-            এই পরিবর্তনটির ফলে কিছু টেক্সট পরবর্তী পেজ
-            {pending?.crossesSurah ? " ও সূরায়" : ""} চলে যাচ্ছে।
+            আপনি সাধারণ / সুরা / পেজ / মডিফিকেশনের জন্য সম্পূর্ণ কুরআন এর পেজ কমবেশি বা
+            সকল সুরার পজিশনে প্রভাব পড়ছে।
             {pending?.affectedPages ? (
               <>
                 {" "}
@@ -65,7 +65,7 @@ export function CrossPageReflowDialog() {
               </>
             ) : null}
             <br />
-            আপনি কি নিশ্চিত যে আপনি লেআউট পরিবর্তন করতে চান?
+            আপনি কি সকল মুডে প্রভাব করতে চান?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -20,6 +20,7 @@ import { useReflowStore } from "@/state/reflowStore";
 import {
   splitToFit,
   reflowFrom,
+  reflowFromAsync,
   backFillFrom,
   measureTextWidth,
   getTextAroundCursor,
@@ -175,6 +176,17 @@ const FabricRow = memo(function FabricRow({
   const selectionPageId = useEditorStore((s) => s.selection?.pageId);
   const focusedRowKey = useEditorStore((s) => s.focusedRowKey);
   const isTypeTool = editMode && activeTool === "type";
+  const isSelectTool = editMode && activeTool === "select";
+
+  // Per-layer drag state (not React state — avoids re-render during drag)
+  const dragRef = useRef<{
+    layer: "arabic" | "bangla";
+    startX: number;
+    startY: number;
+    initDx: number;
+    initDy: number;
+    pointerId: number;
+  } | null>(null);
 
   const arabicSpanRef = useRef<HTMLSpanElement | null>(null);
 
@@ -205,6 +217,7 @@ const FabricRow = memo(function FabricRow({
   const isArabicEditing = isTypeTool && selectionKey === aLk && selectionPageId === pageId;
 
   // Bangla layer
+  const bDx = bOv?.dx ?? 0;
   const bDy = bOv?.dy ?? 0;
   const bFontPx = bOv?.fontPx ?? gBangla;
   const bLeading = bOv?.leading ?? 1.1;
@@ -295,6 +308,42 @@ const FabricRow = memo(function FabricRow({
               }
             : undefined
         }
+        onPointerDown={
+          isSelectTool
+            ? (e) => {
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                dragRef.current = {
+                  layer: "arabic",
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  initDx: aDx,
+                  initDy: aDy,
+                  pointerId: e.pointerId,
+                };
+                useEditorStore.getState().setSelection({
+                  kind: "layer", key: aLk, pageId, rowIndex: i, layerKind: "arabic",
+                });
+              }
+            : undefined
+        }
+        onPointerMove={
+          isSelectTool
+            ? (e) => {
+                const d = dragRef.current;
+                if (!d || d.layer !== "arabic") return;
+                const zoomScale = useEditorStore.getState().zoom || 1;
+                const dx = d.initDx + (e.clientX - d.startX) / zoomScale;
+                const dy = d.initDy + (e.clientY - d.startY) / zoomScale;
+                patchLocal(aLk, { dx: Math.round(dx), dy: Math.round(dy) });
+              }
+            : undefined
+        }
+        onPointerUp={
+          isSelectTool
+            ? () => { dragRef.current = null; }
+            : undefined
+        }
 
         style={{
           position: "absolute",
@@ -319,8 +368,8 @@ const FabricRow = memo(function FabricRow({
           transform: `translate(${aDx}px, ${gArabicY + aBaseline + aDy}px) scaleX(${aHScale}) scaleY(${aVScale})`,
           transformOrigin: "top left",
           zIndex: 30,
-          pointerEvents: isTypeTool ? "auto" : "none",
-          cursor: isArabicEditing ? "text" : isTypeTool ? "pointer" : "default",
+          pointerEvents: isTypeTool || isSelectTool ? "auto" : "none",
+          cursor: isArabicEditing ? "text" : isSelectTool ? "grab" : isTypeTool ? "pointer" : "default",
         }}
       >
         {isArabicEditing ? (
@@ -378,6 +427,42 @@ const FabricRow = memo(function FabricRow({
               }
             : undefined
         }
+        onPointerDown={
+          isSelectTool
+            ? (e) => {
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                dragRef.current = {
+                  layer: "bangla",
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  initDx: bDx,
+                  initDy: bDy,
+                  pointerId: e.pointerId,
+                };
+                useEditorStore.getState().setSelection({
+                  kind: "layer", key: bLk, pageId, rowIndex: i, layerKind: "bangla",
+                });
+              }
+            : undefined
+        }
+        onPointerMove={
+          isSelectTool
+            ? (e) => {
+                const d = dragRef.current;
+                if (!d || d.layer !== "bangla") return;
+                const zoomScale = useEditorStore.getState().zoom || 1;
+                const dx = d.initDx + (e.clientX - d.startX) / zoomScale;
+                const dy = d.initDy + (e.clientY - d.startY) / zoomScale;
+                patchLocal(bLk, { dx: Math.round(dx), dy: Math.round(dy) });
+              }
+            : undefined
+        }
+        onPointerUp={
+          isSelectTool
+            ? () => { dragRef.current = null; }
+            : undefined
+        }
 
         style={{
           position: "absolute",
@@ -399,11 +484,11 @@ const FabricRow = memo(function FabricRow({
           textAlign: bAlign,
           textAlignLast: bAlign === "justify" ? "justify" : undefined,
           whiteSpace: "normal",
-          transform: `translateY(${gBanglaY + bBaseline + bDy}px) scaleX(${bHScale}) scaleY(${bVScale})`,
+          transform: `translate(${bDx}px, ${gBanglaY + bBaseline + bDy}px) scaleX(${bHScale}) scaleY(${bVScale})`,
           transformOrigin: "top left",
           zIndex: 10,
-          pointerEvents: isTypeTool ? "auto" : "none",
-          cursor: isBanglaEditing ? "text" : isTypeTool ? "pointer" : "default",
+          pointerEvents: isTypeTool || isSelectTool ? "auto" : "none",
+          cursor: isBanglaEditing ? "text" : isSelectTool ? "grab" : isTypeTool ? "pointer" : "default",
         }}
       >
         {isBanglaEditing ? (
@@ -619,7 +704,7 @@ function InlineTextEditor({
       // Strip non-reflow props before passing into reflowFrom.
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { cascade: _c, scopedPageIds: _s, ...reflowArgs } = base;
-      reflowFrom({
+      void reflowFromAsync({
         ...reflowArgs,
         startPageId: targetPageId,
         startRowIndex: targetRowIdx,
@@ -732,11 +817,18 @@ function InlineTextEditor({
       const combined = nextExisting ? afterText + " " + nextExisting : afterText;
 
       // 4. Dry-run cascade plan to detect cross-page / cross-surah impact
+      const { fits: nextFits, overflow: nextOverflow } = splitToFit(
+        combined,
+        availableWidth,
+        fontFamily,
+        fontSize,
+      );
+
       const plan = planCascade({
         startPageId: targetPageId,
         startRowIndex: targetRowIdx,
-        newCurrentText: nextExisting ? "" : "", // start row will be set by reflowFrom from carry
-        pushedText: combined,
+        newCurrentText: nextFits,
+        pushedText: nextOverflow.trim(),
         layer,
         allPages: scopedPageList,
         localMap: base.localMap,
@@ -748,7 +840,7 @@ function InlineTextEditor({
       });
 
       const runReflow = () =>
-        reflowFrom({
+        void reflowFromAsync({
           ...base,
           surahPageIds: scopePageIds,
           startPageId: targetPageId,

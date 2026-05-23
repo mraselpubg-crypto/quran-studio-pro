@@ -13,9 +13,11 @@ import { SelectionPanel } from "./SelectionPanel";
 import { Toaster } from "@/components/ui/sonner";
 import { CrossPageReflowDialog } from "./CrossPageReflowDialog";
 import { toast } from "sonner";
-import { useOverridesStore } from "@/state/overridesStore";
+import { captureSessionBaseline, useOverridesStore } from "@/state/overridesStore";
 import { useEditorStore } from "@/state/editorStore";
+import { useHistoryStore } from "@/state/historyStore";
 import { useReflowStore } from "@/state/reflowStore";
+import { getVisiblePageId } from "@/lib/editorContext";
 import type { BuildProgress } from "@/state/reflowStore";
 
 type Stage = "ui" | "ready";
@@ -33,9 +35,13 @@ export function Workspace() {
   const pages = useReflowStore((s) => s.pages);
   const initReflow = useReflowStore((s) => s.init);
   const buildProgress = useReflowStore((s) => s.buildProgress);
+  const isReflowing = useReflowStore((s) => s.isReflowing);
   const activePageId = useEditorStore((s) => s.activePageId);
   const setActivePageId = useEditorStore((s) => s.setActivePageId);
+  const editMode = useEditorStore((s) => s.editMode);
+  const markSessionStart = useHistoryStore((s) => s.markSessionStart);
   const [zoom, setZoom] = useState(85);
+  const setEditorZoom = useEditorStore((s) => s.setZoom);
   const [stage, setStage] = useState<"ui" | "ready">("ui");
 
   // ── Sidebar panel toggle + resize state ───────────────────────
@@ -70,7 +76,7 @@ export function Workspace() {
 
   useEffect(() => setMounted(true), []);
 
-  const activeId = activePageId ?? pages[0]?.id ?? "";
+  const activeId = getVisiblePageId() ?? "";
 
   const active = useMemo(
     () => pages.find((p) => p.id === activeId) ?? pages[0],
@@ -134,6 +140,13 @@ export function Workspace() {
       cancelAnimationFrame(raf);
     };
   }, []);
+
+  // Start a fresh undo/history session each time editor mode opens.
+  useEffect(() => {
+    if (!editMode) return;
+    markSessionStart();
+    captureSessionBaseline();
+  }, [editMode, markSessionStart]);
 
   // ── Keyboard shortcuts ──────────────────────────────────────────
   useEffect(() => {
@@ -271,6 +284,11 @@ export function Workspace() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, [goToPrev, goToNext]);
+
+  // Sync zoom (percentage) to editorStore as a 0–3 scale factor for drag calculations
+  useEffect(() => {
+    setEditorZoom(zoom / 100);
+  }, [zoom, setEditorZoom]);
 
   // Native wheel handler to prevent browser zoom (passive: false is required)
   useEffect(() => {
@@ -562,7 +580,18 @@ export function Workspace() {
         </BackgroundProvider>
       </FontProvider>
       <Toaster position="bottom-right" theme="dark" richColors />
-      <CrossPageReflowDialog />
+      {/* Background cascade loading overlay */}
+      {isReflowing && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center pb-8">
+          <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-neutral-900/95 px-4 py-2.5 shadow-2xl backdrop-blur-sm">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
+            </span>
+            <span className="text-xs font-medium text-amber-300">রিফ্লো হচ্ছে…</span>
+          </div>
+        </div>
+      )}
     </>
   );
 }
