@@ -1,0 +1,18 @@
+Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+Branch: main
+
+git pull origin main
+Read: AGENT_README.md → CONTINUE_PROMPT.txt → PLAN19_DESIGN.md
+
+Implement Plan 19:
+- Re-architect PageList.tsx to group the flat 600+ page thumbnails into collapsible Surah sections based on useReflowStore distribution data.
+- Add a beautiful search box at the top of the PageList sidebar allowing filtering by Surah number or Bengali/English name.
+- Wire selection sync: clicking a Surah header expands it and scrolls/navigates to its first page. Ensure the sidebar expands the Surah of the currently active page.
+- Ensure the virtualization remains highly performant and doesn't lag.
+- Create scripts/verify-sidebar.mjs to automate Playwright testing of the search & scroll functionality.
+
+Then PLAN_COMPLETION_PROTOCOL.md:
+- tsc, build, verify scripts
+- git commit -m "feat(Plan19): collapsible Surah navigation sidebar and search integration"
+- Update CONTINUE_PROMPT (Plan 19 ✅, Plan 20 stub)
+- docs commit + push

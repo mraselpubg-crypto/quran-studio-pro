@@ -91,14 +91,15 @@ git push origin main
 |------|-----------|
 | Plan 14 | ✅ Scope reset + linking + history labels |
 | Plan 16 | ✅ Area-Text auto reflow (`reflowScope`, `typographyReflow`) |
-| **Plan 17** | ⬜ **এখন implement** — Active Page Context |
-| Plan 18 | Stub — `CONTINUE_PROMPT.txt` |
+| Plan 17 | ✅ Active Page Context (navigation, row flash, click history) |
+| Plan 18 | ✅ Context Page Unification + verify-active-page + infinite loop fix |
+| **Plan 19** | ⬜ **এখন implement** — Collapsible Surah Navigation Sidebar & Search |
 
-বিস্তারিত: **`CONTINUE_PROMPT.txt`** → "Plan 17"
+বিস্তারিত: **`CONTINUE_PROMPT.txt`** → "Plan 19"
 
 ---
 
-## Copy-paste প্রম্পট (অন্য এজেন্টকে দিন)
+## Copy-paste প্রম্পট (অন্য এডিটিং এজেন্টকে দিন)
 
 ```
 Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
@@ -109,13 +110,13 @@ git pull origin main
   AGENT_README.md
   WORKING_AGENT_PROMPT.txt
   CONTINUE_PROMPT.txt
-  PLAN18_DESIGN.md
+  PLAN19_DESIGN.md
 
-বর্তমান কাজ: Plan 18 (CONTINUE_PROMPT.txt)। Plan 17 done — পুনরায় করো না।
+বর্তমান কাজ: Plan 19 (CONTINUE_PROMPT.txt)। Plan 18 and earlier done — পুনরায় করো না।
 
-শেষে: tsc, build, verify-editor.mjs, verify-reflow.mjs, verify-active-page.mjs (after Plan 18)
+শেষে: tsc, build, verify-editor.mjs, verify-reflow.mjs, verify-active-page.mjs, verify-sidebar.mjs (after Plan 19)
 git commit + git push origin main
-CONTINUE_PROMPT.txt আপডেট (Plan 18 ✅) → আবার push
+CONTINUE_PROMPT.txt আপডেট (Plan 19 ✅) → আবার push
 
 GitHub Extension / Credential Manager দিয়ে push করো — token ফাইলে/চ্যাটে নয়।
 ```

@@ -125,32 +125,40 @@ Order: **live → check → code → verify → commit → handoff files → com
 
 ---
 
-## 🎯 CURRENT PLAN — Plan 18: Context Page Unification + verify-active-page (IMPLEMENT NEXT)
+### Plan 18 ✅ — Context Page Unification + verify-active-page (commit ~665bcfc)
+- `getContextPageId()` unified fallback across `reflowScope` and `typographyReflow`.
+- Added Playwright script `scripts/verify-active-page.mjs` verifying context page scoped reset.
+- Fixed critical infinite rendering loop in `CanvasToolbar` and `PropertiesPanel` by wrapping Zustand `sessionEntries()` selectors in `useShallow`.
+
+---
+
+## 🎯 CURRENT PLAN — Plan 19: Collapsible Surah Navigation Sidebar & Search (IMPLEMENT NEXT)
 
 ### Problem
-- `getContextPageId()` exists but `reflowScope` / `typographyReflow` may still use ad-hoc `pages[0]` fallbacks
-- No automated test for “page 2 visible, no selection → page-scope reset hits page 2 only”
+- Navigating the flat, unorganized list of 600+ page thumbnails in the sidebar is difficult and lacks context.
+- There is no search functionality to jump to a specific Surah by name or number.
 
 ### Tasks
 
-**1. Unify fallbacks**
-- Replace scattered `pages[0]?.id` / selection-only page picks with `getContextPageId()` where scope = page and no explicit pageId
+**1. Group Pages by Surah in PageList**
+- Re-architect `PageList.tsx` to group page thumbnails under collapsible Surah headers using the `distribution` mapping from `useReflowStore`.
+- Display Surah number, name, and total page count in the header.
 
-**2. Playwright**
-- Add `scripts/verify-active-page.mjs`:
-  - Open page 2 (no layer selection)
-  - Page-scope reset → only page 2 overrides cleared (smoke assertion)
+**2. Add Search Box**
+- Add a search input at the top of the PageList sidebar.
+- Dynamically filter Surahs by number, Bengali name, or English name as the user types.
 
-**3. Docs (optional)**
-- Note dual-repo / Lovable sync in AGENT_README if team uses two remotes
+**3. Selection & Scroll Sync**
+- Clicking a Surah header expands it and scrolls the canvas directly to its first page.
+- Maintain smooth virtualized rendering during expand/collapse.
 
 ### Verification
 - `npx tsc --noEmit` + `npm run build`
-- `node scripts/verify-active-page.mjs` (+ existing verify-editor / verify-reflow)
+- Run Playwright test script `scripts/verify-sidebar.mjs` (to be created in Plan 19).
 
 ### Commit message
 ```
-feat(Plan18): unify context page id and add active-page verify script
+feat(Plan19): collapsible Surah navigation sidebar and search integration
 ```
 
 ---
