@@ -1,95 +1,164 @@
-## Plan 11 — UI/UX Improvements (4 features)
+## Plan 12 — Cross-Page/Cross-Surah Reflow & Dynamic Linking
 
-### Step 0 — Repo sync & sanity
-`git pull origin main` → `npm install` → `npx tsc --noEmit` → `npm run build` (all must pass) before any edits.
-
----
-
-### Feature 1: In-app "সব রিসেট করুন" confirm dialog
-
-**File:** `src/components/studio/PropertiesPanel.tsx` (replace the `window.confirm` in `ResetGroup`).
-
-- Add a new local component `ResetConfirmDialog` built on the existing `AlertDialog` primitives (same pattern as `ScopeImpactWarningDialog.tsx`).
-- Scope-aware body text (read current `scope` from `useEditorStore`):
-  - `general`: "এই নির্বাচনের সেটিং রিসেট হবে"
-  - `page`: "এই পেজের সব সেটিং রিসেট হবে"
-  - `surah`: "এই সূরার সব সেটিং রিসেট হবে"
-  - `global`: "সম্পূর্ণ মুসহাফের সব সেটিং রিসেট হবে ⚠️" (red emphasis)
-- Buttons: "হ্যাঁ, রিসেট করুন" (destructive variant) + "বাতিল" (cancel).
-- Confirming runs the existing `resetAll()` + `rebuild()` + history clear flow that lives inline today.
+This plan upgrades the existing reflow/linking primitives into a full cascading text-flow system with an in-app confirmation gate, and makes the Linking switch propagate **all** edits (Type Tool + Move Tool) according to the active scope.
 
 ---
 
-### Feature 2: Per-row 3-layer Y-offset movement (Symbol / Arabic / Bengali)
+### Scope of work (4 files modified, 2 created)
 
-**Data model — `src/state/overridesStore.ts`:**
-- Re-use the existing `layerKey(pageId, rowIndex, "arabic"|"bangla"|"symbol")` (already implemented & rendered).
-- Store offsets in the existing `LocalOverride.dy` field for arabic/bangla layer keys, and for symbol create a `layer:{pageId}:{rowIndex}:symbol` entry — also `dy`.
-- Extend `FabricLines.tsx` so the **symbol strip** subscribes to `s.local[layerKey(pageId,i,"symbol")]` (today `gSymbolY` is the only source) and adds `symOv.dy` to its `translateY`. Arabic + Bangla layers already render `aDy`/(no bDy yet) — add `bDy = bOv?.dy ?? 0` to the bangla `translateY`.
+```text
+src/state/editorStore.ts         (modified — add pendingReflow gate state)
+src/state/reflowStore.ts         (modified — add cascadeReflow + cross-page mechanics)
+src/lib/textReflow.ts            (modified — cross-page generator that returns a "diff plan")
+src/components/studio/FabricLines.tsx   (modified — intercept Enter/paste → guard dialog)
+src/components/studio/CrossPageReflowDialog.tsx  (new — confirmation AlertDialog)
+src/components/studio/PropertiesPanel.tsx (modified — linking now honoured in DSlider/LocalFields)
+```
 
-**UI — `PropertiesPanel.tsx`:** add `SubLayerPanel` (rendered when `selection?.kind === "row"`, regardless of tool, since the spec says "Move tool active") with:
-- Three pill toggles: 🔣 প্রতীক | ع আরবি | ক বাংলা — switches a local `activeSub` state.
-- A single Y-offset slider (min -30, max 30) that reads/writes `layerKey(pageId, rowIndex, activeSub).dy` via `patchScoped` (scope-aware).
-- Reset button per sub-layer (clears that key's `dy`).
-
----
-
-### Feature 3: Paragraph Linking System
-
-**State:** new tiny store `src/state/linkingStore.ts` with persisted booleans `{ arabic, bangla, symbol }` (default all `false`).
-
-**UI — `PropertiesPanel.tsx` (new `LinkingPanel` section, just below `SubLayerPanel`):**
-- Three switches (shadcn `Switch`): 🔗 আরবি / 🔗 বাংলা / 🔗 প্রতীক.
-- "সব লিংক" button toggles all three at once.
-
-**Behaviour — in the sub-layer slider apply path (Feature 2):**
-- When linking is ON for the active sub-layer, override the user-selected `scope` with the link-implied fan-out by calling `patchScoped(layerKey(...), { dy }, scope)` for the linked layer's pages/rows already governed by scope (general/page/surah/global). When OFF, apply only to the current row.
-- Concretely: if `link.arabic` is on AND `scope === "page"`, the patch propagates to every row on the page via the existing `getScopedLayerKeys` "layer" branch. (Already supported — we just route through `patchScoped` instead of `patchLocal`.)
+No new dependencies.
 
 ---
 
-### Feature 4: Save button + auto-save toggle in header
+### Part A — Dynamic Linking propagation (Type + Move tools)
 
-**File:** `src/components/studio/TopBar.tsx`.
+Today `patchScoped()` already fans out a patch to every layerKey matching the active scope. But several call-sites bypass it:
 
-- New `<SaveButton />` rendered only when `editMode === true`, placed next to the Preview/Editor `NavPill`s.
-- Button label: "💾 সেভ". On click:
-  - Force-flush Zustand persist by calling `useOverridesStore.persist.rehydrate()` is not needed (writes are sync). Implement as `useOverridesStore.getState()` then write a manual `localStorage.setItem("studio-save-ts", Date.now())` for indicator + show `toast.success("✅ সেভ সম্পন্ন হয়েছে")`.
-- Unsaved-changes indicator: track a module-level `dirtySince` ref that flips true on `useOverridesStore.subscribe` (any change) and resets on save. Yellow dot shown when dirty.
-- Chevron button next to it opens a small popover (use shadcn `DropdownMenu`):
-  - "🔄 অটো সেভ" `Switch` — persists to `localStorage.autoSave`. When on, a `setInterval(save, 30000)` is registered.
-  - "📋 ম্যানুয়াল সেভ" menu item triggers save.
-- When auto-save is on, render a small "অটো সেভ চালু" label next to the button.
+1. `LocalFields` (`dx`/`dy` numeric inputs) → calls `patchScoped` ✅ already correct.
+2. `SubLayerPanel` Y-offset slider → already uses `patchScoped` ✅.
+3. `DSlider` font/Y-offset sliders → already uses `patchScoped` ✅.
+4. `InlineTextEditor.onSave` → calls `patchLocal` directly. Text overrides are intentionally NOT fanned out (different rows hold different text).
 
----
+**New rule introduced by this plan:** the **Linking switch per sub-layer** (`useLinkingStore`) acts as a *gate* on scope. If Linking for the active layer is **OFF**, force scope = `general` for that edit even if the global scope picker shows `page`/`surah`/`global`. If **ON**, the scope picker value is respected.
 
-### Step N — Verify & commit
-- `npx tsc --noEmit` exits 0
-- `npm run build` exits 0
-- Commit: `feat(Plan11): in-app reset dialog, sub-layer movement, linking system, save button`
-- Push to `main`.
+Implementation: introduce one helper in `overridesStore.ts`:
 
----
+```ts
+export function effectiveScope(scope: SelectionScope, layer: "arabic"|"bangla"|"symbol"|null): SelectionScope {
+  if (!layer) return scope;
+  const linking = useLinkingStore.getState()[layer];
+  return linking ? scope : "general";
+}
+```
 
-### Files touched
-- `src/components/studio/PropertiesPanel.tsx` — reset dialog, SubLayerPanel, LinkingPanel
-- `src/components/studio/FabricLines.tsx` — read symbol/bangla layer `dy`
-- `src/state/overridesStore.ts` — (no schema change; reuse `layer:` keys + `dy`)
-- `src/state/linkingStore.ts` — NEW
-- `src/components/studio/TopBar.tsx` — Save button + dropdown + auto-save
-- `.lovable/plan.md` — mark Plan 11 done, list Plan 12 (Advanced Export)
+Then `DSlider`, `LocalFields`, `SubLayerPanel`, and the new cascade dialog all call `patchScoped(key, patch, effectiveScope(scope, selection.layerKind))`. This is the single source of truth for "linking honours scope".
 
-### Checker prompt (next loop)
-Provided in chat reply after the build commit.
+The Type Tool `InlineTextEditor` is **not** fanned out for `text`, but **structural changes** (Enter / overflow) ARE — that is Part B.
 
 ---
 
-## ✅ Plan 11 — COMPLETED (2026-05-23)
+### Part B — Interactive line-break + cascading reflow
 
-- In-app scope-aware reset dialog (no more `window.confirm`)
-- Per-row Symbol/Arabic/Bengali sub-layer Y-offset sliders
-- Linking toggles (arabic/bangla/symbol) with scope-aware fan-out via `patchScoped`
-- Header Save button + chevron dropdown with Auto-save toggle (30s interval)
+#### B.1 — Intercept Enter & paste in `InlineTextEditor`
 
-PENDING:
-- Plan 12 — Advanced Exporting (PDF & Image Generation)
+Replace today's pure `onInput` handler with explicit key handling:
+
+```ts
+onKeyDown:
+  - if e.key === "Enter": e.preventDefault(); requestLineBreak(cursorBefore, cursorAfter);
+  - all other keys: default behaviour, then syncToStore.
+onPaste:
+  - e.preventDefault(); read text/plain; requestInsert(text);
+```
+
+`getTextAroundCursor()` already exists in `src/lib/textReflow.ts` and gives us `{before, after}` text strings.
+
+#### B.2 — Cascade planner (pure function, `textReflow.ts`)
+
+New function:
+
+```ts
+planCascade({
+  pages: PageData[],            // current pages from reflowStore
+  surahPageIds: string[],       // pages of the current surah (cascade boundary)
+  startPageIdx, startRowIdx,
+  layer: "arabic"|"bangla",
+  newCurrentText: string,       // text the row should hold after the edit
+  pushedText: string,           // text to flow into the NEXT row (may be "")
+  fontFamily, fontSize, availableWidth,
+}): {
+  rowUpdates: Array<{ pageId, rowIndex, layer, text }>,
+  crossesPage: boolean,
+  crossesSurah: boolean,
+  newPagesNeeded: number,       // # of synthetic pages tail-overflow forces
+}
+```
+
+Algorithm (pure, no store writes):
+1. Set `current row → newCurrentText`.
+2. Carry = `pushedText`.
+3. Walk forward row-by-row through the surah pages:
+   - For each downstream row read its **effective** text (override `text` or original).
+   - `combined = carry + " " + downstreamText`.
+   - `splitToFit(combined, ...)` → row gets `fits`, carry = `overflow`.
+   - Record the row update only if `fits !== downstreamText`.
+4. Track `crossesPage` (any update outside startPage) and `crossesSurah` (any update on a page whose surah ≠ startSurah; we can look this up via `reflowStore.distribution`).
+5. If `carry !== ""` after all rows, set `newPagesNeeded = Math.ceil(carry length / per-page capacity)` (best-effort estimate using `LINES_PER_PAGE`).
+
+This planner does not mutate state — it returns the diff so the dialog can show "এই পরিবর্তন N টি পেজ প্রভাবিত করবে" and the user can cancel cleanly.
+
+#### B.3 — `reflowStore.applyCascade(plan)`
+
+New action on `useReflowStore`:
+
+```ts
+applyCascade(plan): void {
+  // 1. Begin a single history group via beginSilent/endSilent.
+  // 2. For each rowUpdate: patchLocal(layerKey(...), { text }).
+  // 3. If plan.newPagesNeeded > 0 → trigger rebuild() to materialise extra pages.
+  //    (The existing pages array is regenerated from verses + overrides on rebuild.)
+  // 4. Capture ONE history entry labelled "টেক্সট রিফ্লো" with scope tag.
+}
+```
+
+Note on "new pages": because pages are rebuilt from `verses.json` + per-row font overrides, today the page count is derived. For text overflow that cannot fit existing rows of the surah, we fall back to triggering a `rebuild()` — the packer will create additional `vpage-N` pages naturally. This keeps the architecture invariant intact.
+
+---
+
+### Part C — Confirmation dialog (`CrossPageReflowDialog.tsx`)
+
+```tsx
+<AlertDialog open={!!pending} onOpenChange={...}>
+  <AlertDialogContent>
+    <AlertDialogTitle>লেআউট পরিবর্তন নিশ্চিত করুন?</AlertDialogTitle>
+    <AlertDialogDescription>
+      এই পরিবর্তনটির ফলে কিছু টেক্সট পরবর্তী পেজ {pending.crossesSurah && "ও সূরায়"} চলে যাচ্ছে।
+      মোট {pending.affectedPages} টি পেজ প্রভাবিত হবে।
+      আপনি কি নিশ্চিত যে আপনি লেআউট পরিবর্তন করতে চান?
+    </AlertDialogDescription>
+    <AlertDialogFooter>
+      <AlertDialogCancel onClick={cancel}>বাতিল</AlertDialogCancel>
+      <AlertDialogAction onClick={confirm} className="bg-red-600">হ্যাঁ, পরিবর্তন করুন</AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+Triggering rules:
+- `crossesPage === false && crossesSurah === false` → apply immediately, no dialog.
+- Otherwise → store the plan in `editorStore.pendingReflow` and render the dialog. On confirm → `reflowStore.applyCascade(plan)`. On cancel → discard plan, restore editor text to pre-edit value.
+
+The dialog is mounted once at the `Workspace` level (so it survives row unmounts during reflow), listening to `useEditorStore((s) => s.pendingReflow)`.
+
+---
+
+### editorStore additions
+
+```ts
+pendingReflow: CascadePlan | null;
+setPendingReflow: (p: CascadePlan | null) => void;
+```
+
+---
+
+### Acceptance criteria
+
+- Pressing **Enter** mid-line in any Arabic/Bangla row pushes trailing text into the next row.
+- Pressing **Enter** on an empty cursor creates an empty visual row and cascades following rows down.
+- When cascade stays inside the current page → no dialog.
+- When cascade pushes any text to **next page** or **next surah** → AlertDialog appears in Bengali with the required message; "বাতিল" reverts the edit, "হ্যাঁ" applies it.
+- Linking switch ON for a layer + scope=page/surah/global → Move/Type-tool typography edits propagate as today.
+- Linking switch OFF for a layer → edits stay local regardless of the scope picker.
+- Symbol/Arabic/Bangla vertical alignment of reflowed rows is preserved (no extra dy/dx writes during cascade — text-only updates).
+- `npx tsc --noEmit` exits 0 and `npm run build` exits 0.
+
+Commit: `feat(Plan12): cross-page reflow cascade, linking-aware scope gating, confirmation dialog`

@@ -284,3 +284,132 @@ export function getTextAroundCursor(el: HTMLElement): {
 
   return { before, after };
 }
+
+
+/* ─── planCascade — pure dry-run for cross-page reflow ──────────── */
+
+export type CascadeRowUpdate = {
+  pageId: string;
+  rowIndex: number;
+  layer: LayerKind;
+  text: string;
+};
+
+export type CascadePlan = {
+  rowUpdates: CascadeRowUpdate[];
+  crossesPage: boolean;
+  crossesSurah: boolean;
+  affectedPages: number;
+  /** Text that does not fit anywhere in the scoped pages (overflow tail). */
+  tailOverflow: string;
+};
+
+export type PlanCascadeOptions = {
+  startPageId: string;
+  startRowIndex: number;
+  /** What the start row should contain AFTER the edit. */
+  newCurrentText: string;
+  /** Text to flow into the row after `start`. May be empty. */
+  pushedText: string;
+  layer: LayerKind;
+  /** All scoped pages in order. */
+  allPages: Array<{ id: string; lines: FabricLine[] }>;
+  localMap: Record<string, LocalOverride>;
+  layerKeyFn: (pid: string, ri: number, layer: LayerKind) => string;
+  fontFamily: string;
+  fontSize: number;
+  availableWidth: number;
+  /** PageIds belonging to the current surah (for crossesSurah detection). */
+  surahPageIds?: string[];
+};
+
+/**
+ * Pure dry-run: returns the diff of what reflow WOULD do, without mutating
+ * any store. Lets the caller decide whether to confirm via a dialog.
+ */
+export function planCascade(opts: PlanCascadeOptions): CascadePlan {
+  const {
+    startPageId,
+    startRowIndex,
+    newCurrentText,
+    pushedText,
+    layer,
+    allPages,
+    localMap,
+    layerKeyFn,
+    fontFamily,
+    fontSize,
+    availableWidth,
+    surahPageIds,
+  } = opts;
+
+  const startPageIdx = allPages.findIndex((p) => p.id === startPageId);
+  if (startPageIdx === -1) {
+    return {
+      rowUpdates: [],
+      crossesPage: false,
+      crossesSurah: false,
+      affectedPages: 0,
+      tailOverflow: "",
+    };
+  }
+
+  const updates: CascadeRowUpdate[] = [
+    { pageId: startPageId, rowIndex: startRowIndex, layer, text: newCurrentText },
+  ];
+
+  let carry = pushedText.trim();
+  const affectedPageIds = new Set<string>([startPageId]);
+
+  // Walk forward through scoped pages, starting at the row AFTER startRow.
+  let pi = startPageIdx;
+  let ri = startRowIndex + 1;
+
+  while (carry !== "" && pi < allPages.length) {
+    const page = allPages[pi];
+    if (!page) break;
+
+    if (ri >= page.lines.length) {
+      pi += 1;
+      ri = 0;
+      continue;
+    }
+
+    const existing = getEffectiveText(
+      page.id,
+      ri,
+      layer,
+      page.lines,
+      localMap,
+      layerKeyFn,
+    );
+    const combined = existing ? carry + " " + existing : carry;
+    const { fits, overflow } = splitToFit(
+      combined,
+      availableWidth,
+      fontFamily,
+      fontSize,
+    );
+
+    if (fits !== existing) {
+      updates.push({ pageId: page.id, rowIndex: ri, layer, text: fits });
+      affectedPageIds.add(page.id);
+    }
+    carry = overflow.trim();
+    ri += 1;
+  }
+
+  const crossesPage = Array.from(affectedPageIds).some((pid) => pid !== startPageId);
+  let crossesSurah = false;
+  if (surahPageIds && surahPageIds.length > 0) {
+    crossesSurah = Array.from(affectedPageIds).some((pid) => !surahPageIds.includes(pid));
+  }
+
+  return {
+    rowUpdates: updates,
+    crossesPage,
+    crossesSurah,
+    affectedPages: affectedPageIds.size,
+    tailOverflow: carry,
+  };
+}

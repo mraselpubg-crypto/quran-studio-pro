@@ -11,6 +11,7 @@ import { ResizeDivider } from "./ResizeDivider";
 import { TopBar } from "./TopBar";
 import { SelectionPanel } from "./SelectionPanel";
 import { Toaster } from "@/components/ui/sonner";
+import { CrossPageReflowDialog } from "./CrossPageReflowDialog";
 import { toast } from "sonner";
 import { useOverridesStore } from "@/state/overridesStore";
 import { useEditorStore } from "@/state/editorStore";
@@ -410,6 +411,7 @@ export function Workspace() {
           </div>
         </div>
         <Toaster position="bottom-center" theme="dark" richColors />
+        <CrossPageReflowDialog />
       </>
     );
   }
@@ -559,6 +561,7 @@ export function Workspace() {
         </BackgroundProvider>
       </FontProvider>
       <Toaster position="bottom-right" theme="dark" richColors />
+      <CrossPageReflowDialog />
     </>
   );
 }
