@@ -25,6 +25,7 @@ import {
   getTextAroundCursor,
   type LayerKind,
 } from "@/lib/textReflow";
+import { splitArabicWords } from "@/lib/wordSplit";
 import { useLargeChangeGuard } from "@/hooks/useLargeChangeGuard";
 import { ScopeImpactWarningDialog } from "./ScopeImpactWarningDialog";
 
