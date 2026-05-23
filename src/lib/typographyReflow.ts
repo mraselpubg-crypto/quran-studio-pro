@@ -12,8 +12,11 @@
 import {
   patchScoped,
   getScopedLayerKeys,
+  useOverridesStore,
+  MASTER_DEFAULTS,
   type LocalOverride,
 } from "@/state/overridesStore";
+
 import type { SelectionScope } from "@/state/editorStore";
 import { reflowLayerText } from "./textReflow";
 import type { ReflowLayer } from "./reflowScope";
@@ -95,13 +98,10 @@ export async function patchTypographyScoped(
 }
 
 function readFontPxFromStore(layerK: string, layer: ReflowLayer): number {
-  // Defensive read — overridesStore import is at top of file.
-  // Falls back to MASTER defaults if missing.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { useOverridesStore, MASTER_DEFAULTS } = require("@/state/overridesStore") as typeof import("@/state/overridesStore");
   const s = useOverridesStore.getState();
   const ov = s.local[layerK];
   if (typeof ov?.fontPx === "number") return ov.fontPx;
   if (layer === "arabic") return s.global.arabicFontPx ?? MASTER_DEFAULTS.arabicFontPx ?? 40;
   return s.global.banglaFontPx ?? MASTER_DEFAULTS.banglaFontPx ?? 18;
 }
+
