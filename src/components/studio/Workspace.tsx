@@ -33,7 +33,8 @@ export function Workspace() {
   const pages = useReflowStore((s) => s.pages);
   const initReflow = useReflowStore((s) => s.init);
   const buildProgress = useReflowStore((s) => s.buildProgress);
-  const [activeId, setActiveId] = useState(pages[0]?.id ?? "");
+  const activePageId = useEditorStore((s) => s.activePageId);
+  const setActivePageId = useEditorStore((s) => s.setActivePageId);
   const [zoom, setZoom] = useState(85);
   const [stage, setStage] = useState<"ui" | "ready">("ui");
 
@@ -69,6 +70,8 @@ export function Workspace() {
 
   useEffect(() => setMounted(true), []);
 
+  const activeId = activePageId ?? pages[0]?.id ?? "";
+
   const active = useMemo(
     () => pages.find((p) => p.id === activeId) ?? pages[0],
     [activeId, pages],
@@ -80,30 +83,28 @@ export function Workspace() {
   }, [activeId, pages]);
 
   const goToPrev = useCallback(() => {
-    if (activeIdx > 0) setActiveId(pages[activeIdx - 1].id);
-  }, [activeIdx, pages]);
+    if (activeIdx > 0) setActivePageId(pages[activeIdx - 1]!.id);
+  }, [activeIdx, pages, setActivePageId]);
 
   const goToNext = useCallback(() => {
-    if (activeIdx < pages.length - 1) setActiveId(pages[activeIdx + 1].id);
-  }, [activeIdx, pages]);
+    if (activeIdx < pages.length - 1) setActivePageId(pages[activeIdx + 1]!.id);
+  }, [activeIdx, pages, setActivePageId]);
 
-  // Keep activeId valid after reflow shuffles pages.
+  // Seed / repair activePageId after reflow shuffles pages.
   useEffect(() => {
-    if (!pages.find((p) => p.id === activeId) && pages[0]) {
-      setActiveId(pages[0].id);
+    if (!pages.length) return;
+    const cur = useEditorStore.getState().activePageId;
+    if (!cur || !pages.find((p) => p.id === cur)) {
+      setActivePageId(pages[0]!.id);
     }
-  }, [pages, activeId]);
+  }, [pages, setActivePageId]);
 
-  // Wire history-item navigation: when navigateToPageId is set, jump to that page.
+  // Legacy: clear navigateToPageId after external navigation (do not clear row flash).
   const navigateToPageId = useEditorStore((s) => s.navigateToPageId);
   useEffect(() => {
     if (!navigateToPageId) return;
-    const exists = pages.find((p) => p.id === navigateToPageId);
-    if (exists) setActiveId(navigateToPageId);
-    // Clear after consuming
-    useEditorStore.getState().clearFocusedRow();
     useEditorStore.setState({ navigateToPageId: null });
-  }, [navigateToPageId, pages]);
+  }, [navigateToPageId]);
 
   const distribution = useReflowStore((s) => s.distribution);
   const totalAyat = useMemo(
@@ -434,7 +435,7 @@ export function Workspace() {
                       className="flex-shrink-0 overflow-hidden border-r border-neutral-800 transition-[width] duration-200"
                       style={{ width: leftWidth }}
                     >
-                      <PageList pages={pages} activeId={activeId} onSelect={setActiveId} />
+                      <PageList pages={pages} activeId={activeId} onSelect={setActivePageId} />
                     </div>
                     <ResizeDivider onResize={handleLeftResize} />
                   </>

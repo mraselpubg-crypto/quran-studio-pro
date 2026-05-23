@@ -51,9 +51,11 @@ type EditorState = {
   showGuides: boolean;
   snapToGrid: boolean;
   layerPanelOpen: boolean;
-  /** Target page to navigate to (read by Workspace) */
+  /** Page currently shown on the canvas (single source of truth). */
+  activePageId: string | null;
+  /** @deprecated Legacy signal; prefer activePageId. Cleared after Workspace consumes. */
   navigateToPageId: string | null;
-  /** Row key to flash for 1s after navigation */
+  /** Row key to flash for ~1.2s after navigation */
   focusedRowKey: string | null;
   /** Set of surah numbers currently expanded in the sidebar */
   expandedSurahs: Set<number>;
@@ -71,7 +73,8 @@ type EditorState = {
   setSnapToGrid: (v: boolean) => void;
   setLayerPanelOpen: (v: boolean) => void;
   toggleLayerPanel: () => void;
-  /** Navigate to a page and optionally flash a row for 1s */
+  setActivePageId: (pageId: string | null) => void;
+  /** Navigate to a page and optionally flash a row for ~1.2s */
   navigateTo: (pageId: string, rowKey?: string) => void;
   clearFocusedRow: () => void;
 };
@@ -87,6 +90,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   showGuides: false,
   snapToGrid: false,
   layerPanelOpen: false,
+  activePageId: null,
   navigateToPageId: null,
   focusedRowKey: null,
   expandedSurahs: new Set<number>(),
@@ -135,9 +139,14 @@ export const useEditorStore = create<EditorState>((set) => ({
   setLayerPanelOpen: (v) => set({ layerPanelOpen: v }),
   toggleLayerPanel: () => set((s) => ({ layerPanelOpen: !s.layerPanelOpen })),
 
+  setActivePageId: (pageId) => set({ activePageId: pageId }),
+
   navigateTo: (pageId, rowKey) => {
-    set({ navigateToPageId: pageId, focusedRowKey: rowKey ?? null });
-    // Auto-clear focusedRowKey after 1.2s
+    set({
+      activePageId: pageId,
+      navigateToPageId: pageId,
+      focusedRowKey: rowKey ?? null,
+    });
     if (rowKey) {
       setTimeout(() => {
         useEditorStore.getState().clearFocusedRow();

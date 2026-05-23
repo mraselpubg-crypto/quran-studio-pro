@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ARABIC_FONT_PX, BANGLA_FONT_PX } from "./FabricLines";
 import { isTypographyField } from "@/lib/typographyReflow";
+import { getContextPageId } from "@/lib/editorContext";
 import { useTypographyPatch } from "@/hooks/useTypographyPatch";
 import { ScopeImpactWarningDialog } from "./ScopeImpactWarningDialog";
 
@@ -203,6 +204,7 @@ function HistoryTab() {
   const entries = useHistoryStore((s) => s.entries);
   const restoreTo = useHistoryStore((s) => s.restoreTo);
   const clear = useHistoryStore((s) => s.clear);
+  const navigateTo = useEditorStore((s) => s.navigateTo);
   const reversed = [...entries].reverse();
   const [open, setOpen] = useState(false);
 
@@ -244,8 +246,30 @@ function HistoryTab() {
         <div className="flex flex-col gap-1.5">
           {reversed.map((entry) => {
             const m = SCOPE_META[entry.scope] ?? SCOPE_META.global;
+            const goToEntry = () => {
+              if (!entry.pageId) return;
+              const rk =
+                entry.layerKey ??
+                (entry.rowIndex !== undefined
+                  ? `row:${entry.pageId}:${entry.rowIndex}`
+                  : undefined);
+              navigateTo(entry.pageId, rk);
+            };
+
             return (
-              <div key={entry.id} className="flex flex-col gap-1 rounded bg-neutral-900/50 p-2 group hover:bg-neutral-800 transition-colors">
+              <div
+                key={entry.id}
+                role="button"
+                tabIndex={0}
+                onClick={goToEntry}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    goToEntry();
+                  }
+                }}
+                className="flex flex-col gap-1 rounded bg-neutral-900/50 p-2 group hover:bg-neutral-800 transition-colors cursor-pointer"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="rounded-sm px-1.5 py-0.5 text-[9px] font-bold" style={{ background: `${m.color}20`, color: m.color }}>
                     {m.labelBn}
@@ -262,7 +286,10 @@ function HistoryTab() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] text-neutral-300 truncate">{entry.labelBn}</span>
                   <button
-                    onClick={() => restoreTo(entry.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      restoreTo(entry.id);
+                    }}
                     className="shrink-0 rounded border border-neutral-700 bg-neutral-950 px-2 py-0.5 text-[9px] text-neutral-400 opacity-0 group-hover:opacity-100 hover:border-amber-500/40 hover:text-amber-300 transition-all"
                   >
                     পুনরুদ্ধার
@@ -466,7 +493,7 @@ function ResetGroup() {
     void (async () => {
       await resetScoped(scope, {
         key: selection?.key,
-        pageId: selection?.pageId ?? pages[0]?.id,
+        pageId: getContextPageId(),
       });
       rebuild();
       useOverridesStore.temporal.getState().clear();
