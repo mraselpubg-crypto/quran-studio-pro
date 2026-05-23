@@ -11,7 +11,8 @@
 
 import type { FabricLine } from "@/components/studio/FabricLines";
 import type { LocalOverride } from "@/state/overridesStore";
-import { measureTextWidthCanvas, splitToFitCanvas } from "./canvasMeasure";
+import { measureTextWidthCanvas, splitToFitCanvas, splitToFitForLayer } from "./canvasMeasure";
+
 
 export type LayerKind = "arabic" | "bangla";
 
@@ -127,12 +128,14 @@ export function reflowFrom(opts: ReflowOptions): void {
         ? overflow + " " + existingText
         : overflow;
 
-      const { fits, overflow: newOverflow } = splitToFitCanvas(
+      const { fits, overflow: newOverflow } = splitToFitForLayer(
         combined,
         availableWidth,
         fontFamily,
         fontSize,
+        layer,
       );
+
 
       patchLocal(lk, { text: fits });
       overflow = newOverflow.trim();
@@ -230,12 +233,14 @@ export function backFillFrom(opts: BackFillOptions): void {
     }
 
     const combined = curText ? curText + " " + nextText : nextText;
-    const { fits, overflow } = splitToFitCanvas(
+    const { fits, overflow } = splitToFitForLayer(
       combined,
       availableWidth,
       fontFamily,
       fontSize,
+      layer,
     );
+
 
     // No extra word pulled — leading word of nextText doesn't fit. Stop.
     if (fits === curText) break;
@@ -384,12 +389,14 @@ export function planCascade(opts: PlanCascadeOptions): CascadePlan {
       layerKeyFn,
     );
     const combined = existing ? carry + " " + existing : carry;
-    const { fits, overflow } = splitToFit(
+    const { fits, overflow } = splitToFitForLayer(
       combined,
       availableWidth,
       fontFamily,
       fontSize,
+      layer,
     );
+
 
     if (fits !== existing) {
       updates.push({ pageId: page.id, rowIndex: ri, layer, text: fits });
@@ -413,3 +420,172 @@ export function planCascade(opts: PlanCascadeOptions): CascadePlan {
     tailOverflow: carry,
   };
 }
+
+/* ─── reflowLayerText — single unified entry point ──────────────── */
+
+import { effectiveReflowScope, type ReflowLayer } from "./reflowScope";
+import { useOverridesStore, layerKey as _layerKeyFn } from "@/state/overridesStore";
+import { useReflowStore } from "@/state/reflowStore";
+import { useEditorStore, type SelectionScope } from "@/state/editorStore";
+
+export type ReflowLayerTextResult = {
+  /** Link OFF + overflow exists → caller should toast/clip. */
+  clipped: boolean;
+  /** Did we end up modifying any other row? */
+  cascaded: boolean;
+  /** crossesPage flag from planCascade (only meaningful when cascaded). */
+  crossesPage: boolean;
+  crossesSurah: boolean;
+};
+
+export type ReflowLayerTextOptions = {
+  pageId: string;
+  rowIndex: number;
+  layer: ReflowLayer;
+  reason: "text-edit" | "typography" | "paste";
+  fontFamily: string;
+  fontSize: number;
+  availableWidth: number;
+  /** Editor scope at trigger time. Defaults to current editor scope. */
+  scope?: SelectionScope;
+};
+
+/**
+ * Unified reflow trigger used by both typography changes and (eventually) the
+ * inline editor. Resolves layer-aware effective scope, runs the cascade walk,
+ * and either applies it directly or stages it on `editorStore.pendingReflow`
+ * for the `CrossPageReflowDialog` to confirm.
+ *
+ * Returns synchronously with metadata so the caller can show a toast when
+ * `clipped === true` (link OFF + overflow).
+ */
+export function reflowLayerText(opts: ReflowLayerTextOptions): ReflowLayerTextResult {
+  const {
+    pageId,
+    rowIndex,
+    layer,
+    fontFamily,
+    fontSize,
+    availableWidth,
+  } = opts;
+
+  const editorState = useEditorStore.getState();
+  const scope = opts.scope ?? editorState.scope;
+  const eff = effectiveReflowScope(scope, layer, pageId);
+
+  const reflowState = useReflowStore.getState();
+  const pages = reflowState.pages as unknown as Array<{ id: string; lines: FabricLine[] }>;
+  const localMap = useOverridesStore.getState().local;
+  const patchLocal = useOverridesStore.getState().patchLocal;
+
+  const startPage = pages.find((p) => p.id === pageId);
+  if (!startPage) {
+    return { clipped: false, cascaded: false, crossesPage: false, crossesSurah: false };
+  }
+
+  const currentText = getEffectiveText(
+    pageId,
+    rowIndex,
+    layer,
+    startPage.lines,
+    localMap,
+    _layerKeyFn,
+  );
+
+  const { fits, overflow } = splitToFitForLayer(
+    currentText,
+    availableWidth,
+    fontFamily,
+    fontSize,
+    layer,
+  );
+
+  // Link OFF — never spill into other rows.
+  if (!eff.cascade) {
+    if (overflow.trim() === "") {
+      return { clipped: false, cascaded: false, crossesPage: false, crossesSurah: false };
+    }
+    // Clip to the current row; caller surfaces a toast.
+    patchLocal(_layerKeyFn(pageId, rowIndex, layer), { text: fits });
+    return { clipped: true, cascaded: false, crossesPage: false, crossesSurah: false };
+  }
+
+  const scopedPages = pages.filter((p) => eff.pageIds.includes(p.id));
+  const surahPageIds = eff.pageIds;
+
+  if (overflow.trim() !== "") {
+    // Dry-run to detect crossing.
+    const plan = planCascade({
+      startPageId: pageId,
+      startRowIndex: rowIndex,
+      newCurrentText: fits,
+      pushedText: overflow.trim(),
+      layer,
+      allPages: scopedPages,
+      localMap,
+      layerKeyFn: _layerKeyFn,
+      fontFamily,
+      fontSize,
+      availableWidth,
+      surahPageIds,
+    });
+
+    const apply = () => {
+      patchLocal(_layerKeyFn(pageId, rowIndex, layer), { text: fits });
+      reflowFrom({
+        startPageId: pageId,
+        startRowIndex: rowIndex + 1,
+        startOverflow: overflow.trim(),
+        layer,
+        allPages: scopedPages,
+        localMap: useOverridesStore.getState().local,
+        patchLocal,
+        layerKeyFn: _layerKeyFn,
+        fontFamily,
+        fontSize,
+        availableWidth,
+        surahPageIds,
+      });
+    };
+
+    if (plan.crossesPage || plan.crossesSurah) {
+      editorState.setPendingReflow({
+        crossesPage: plan.crossesPage,
+        crossesSurah: plan.crossesSurah,
+        affectedPages: plan.affectedPages,
+        confirm: apply,
+      });
+      return {
+        clipped: false,
+        cascaded: true,
+        crossesPage: plan.crossesPage,
+        crossesSurah: plan.crossesSurah,
+      };
+    }
+
+    apply();
+    return { clipped: false, cascaded: true, crossesPage: false, crossesSurah: false };
+  }
+
+  // No overflow → try a back-fill if there is slack.
+  const currentWidth = measureTextWidthCanvas(currentText, fontFamily, fontSize);
+  if (currentWidth < availableWidth - 20) {
+    backFillFrom({
+      startPageId: pageId,
+      startRowIndex: rowIndex,
+      layer,
+      allPages: scopedPages,
+      localMap,
+      patchLocal,
+      layerKeyFn: _layerKeyFn,
+      fontFamily,
+      fontSize,
+      availableWidth,
+      surahPageIds,
+    });
+    return { clipped: false, cascaded: true, crossesPage: false, crossesSurah: false };
+  }
+
+  return { clipped: false, cascaded: false, crossesPage: false, crossesSurah: false };
+}
+
