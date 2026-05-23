@@ -23,6 +23,7 @@ import {
   backFillFrom,
   measureTextWidth,
   getTextAroundCursor,
+  planCascade,
   type LayerKind,
 } from "@/lib/textReflow";
 import { splitArabicWords } from "@/lib/wordSplit";
