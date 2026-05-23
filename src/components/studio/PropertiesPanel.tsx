@@ -4,7 +4,7 @@ import {
   Link2, RotateCcw, ScanLine, Type, Move
 } from "lucide-react";
 import { useEditorStore, type SelectionScope } from "@/state/editorStore";
-import { useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped, effectiveScope } from "@/state/overridesStore";
+import { useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped, effectiveScope, effectiveScopeForRow } from "@/state/overridesStore";
 import { useHistoryStore, relativeTime } from "@/state/historyStore";
 import { useReflowStore } from "@/state/reflowStore";
 import { useLinkingStore } from "@/state/linkingStore";
@@ -23,6 +23,16 @@ const SCOPE_META: Record<SelectionScope, { labelBn: string; color: string; icon:
   global:  { labelBn: "সকল",   color: "#10b981", icon: Globe,        desc: "সব পেজের একই ধরনের সব উপাদান" },
 };
 const SCOPES: SelectionScope[] = ["general", "page", "surah", "global"];
+
+type LinkLayer = "arabic" | "bangla" | "symbol";
+const KEY_TO_LAYER: Partial<Record<keyof GlobalOverrides, LinkLayer>> = {
+  arabicFontPx: "arabic",
+  arabicYOffset: "arabic",
+  banglaFontPx: "bangla",
+  banglaYOffset: "bangla",
+  symbolYOffset: "symbol",
+};
+
 
 type Tab = "controls" | "history";
 
@@ -294,13 +304,18 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
 
   const isOverridden = isLocalScope ? localValue !== undefined : stored !== undefined;
 
+  // Layer this slider semantically targets — drives the linking gate.
+  const layerForGate: LinkLayer | null = KEY_TO_LAYER[k] ?? (selection?.layerKind as LinkLayer | undefined) ?? null;
+  const linked = useLinkingStore((s) => (layerForGate ? s[layerForGate] : false));
+  const willFanOut = isLocalScope && linked;
+
   const applyValue = (v: number) => {
     setDragging(null);
     if (!isLocalScope) {
       setGlobal(k, v);
     } else {
       void (async () => {
-        const eff = await effectiveScope(scope, selection?.layerKind ?? null);
+        const eff = await effectiveScope(scope, layerForGate);
         void patchScoped(selKey!, { [localField!]: v } as never, eff);
       })();
     }
@@ -312,7 +327,7 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
       setGlobal(k, undefined);
     } else {
       void (async () => {
-        const eff = await effectiveScope(scope, selection?.layerKind ?? null);
+        const eff = await effectiveScope(scope, layerForGate);
         void patchScoped(selKey!, { [localField!]: undefined } as never, eff);
       })();
     }
@@ -321,7 +336,16 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-1">
-        <span className="text-[11px] font-medium text-neutral-400">{label}</span>
+        <span className="flex items-center gap-1 text-[11px] font-medium text-neutral-400">
+          {label}
+          {isLocalScope && layerForGate && (
+            <Link2
+              className="h-2.5 w-2.5"
+              style={{ color: willFanOut ? "#a78bfa" : "#404040" }}
+              aria-label={willFanOut ? "fan-out enabled" : "local only"}
+            />
+          )}
+        </span>
         <div className="flex items-center gap-1">
           <input type="number" value={display}
             onChange={(e) => applyValue(Number(e.target.value))}
@@ -334,6 +358,7 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
           )}
         </div>
       </div>
+
       <input type="range" min={min} max={max} value={display}
         onInput={(e) => setDragging(Number((e.target as HTMLInputElement).value))}
         onChange={(e) => applyValue(Number((e.target as HTMLInputElement).value))}
@@ -351,18 +376,30 @@ function LocalFields({ color }: { color: string }) {
   const scope = useEditorStore((s) => s.scope);
   const local = useOverridesStore((s) => selection ? s.local[selection.key] : undefined);
   if (!selection) return <div className="text-[10px] text-neutral-600 rounded bg-neutral-900/50 p-2 text-center">ট্রান্সফর্ম করার জন্য সারি নির্বাচন করুন</div>;
+  const link = useLinkingStore();
+  const layerKind = selection.layerKind ?? null;
+  const willFanOut =
+    scope !== "general" &&
+    (layerKind ? link[layerKind] : link.arabic && link.bangla && link.symbol);
   const apply = (patch: Record<string, unknown>) => {
     void (async () => {
-      const eff = await effectiveScope(scope, selection.layerKind ?? null);
+      const eff = layerKind
+        ? await effectiveScope(scope, layerKind)
+        : await effectiveScopeForRow(scope);
       void patchScoped(selection.key, patch as never, eff);
     })();
   };
+
   return (
     <div className="grid grid-cols-2 gap-3">
       {(["dx", "dy"] as const).map((f) => (
         <div key={f} className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase text-neutral-500" style={{ color }}>{f === "dx" ? "X অফসেট" : "Y অফসেট"}</span>
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-neutral-500" style={{ color }}>
+              {f === "dx" ? "X অফসেট" : "Y অফসেট"}
+              <Link2 className="h-2.5 w-2.5" style={{ color: willFanOut ? "#a78bfa" : "#404040" }} />
+            </span>
+
             {(local?.[f] ?? 0) !== 0 && (
               <button onClick={() => apply({ [f]: undefined })} className="text-neutral-600 hover:text-amber-400">
                 <RotateCcw className="h-2.5 w-2.5" />
@@ -540,7 +577,10 @@ function SubLayerPanel({ pageId, rowIndex, scope }: { pageId: string; rowIndex: 
 
 function LinkingPanel() {
   const { arabic, bangla, symbol, setLink, setAll } = useLinkingStore();
+  const scope = useEditorStore((s) => s.scope);
+  const scopeMeta = SCOPE_META[scope];
   const allOn = arabic && bangla && symbol;
+
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
       <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-violet-400">
@@ -554,15 +594,38 @@ function LinkingPanel() {
       </div>
 
       {([
-        ["arabic", "🔗 আরবি লিংক", arabic],
-        ["bangla", "🔗 বাংলা লিংক", bangla],
-        ["symbol", "🔗 প্রতীক লিংক", symbol],
-      ] as const).map(([k, label, on]) => (
-        <label key={k} className="flex items-center justify-between gap-2 rounded bg-neutral-900/40 px-2 py-1.5 cursor-pointer">
-          <span className="text-[11px] text-neutral-300">{label}</span>
-          <Switch checked={on} onCheckedChange={(v) => setLink(k, v)} />
-        </label>
-      ))}
+        ["arabic", "আরবি লিংক", arabic],
+        ["bangla", "বাংলা লিংক", bangla],
+        ["symbol", "প্রতীক লিংক", symbol],
+      ] as const).map(([k, label, on]) => {
+
+        return (
+          <label
+            key={k}
+            className="flex items-center justify-between gap-2 rounded px-2 py-1.5 cursor-pointer transition-all"
+            style={
+              on
+                ? { background: `${scopeMeta.color}10`, boxShadow: `inset 0 0 0 1px ${scopeMeta.color}55` }
+                : { background: "rgba(23,23,23,0.6)" }
+            }
+          >
+            <span className="flex items-center gap-1.5 text-[11px] text-neutral-300">
+              <span style={{ opacity: on ? 1 : 0.4 }}>{on ? "🔗" : "⛓️‍💥"}</span>
+              {label}
+              {on && (
+                <span
+                  className="ml-1 rounded px-1.5 py-0.5 text-[9px] font-bold"
+                  style={{ background: `${scopeMeta.color}22`, color: scopeMeta.color }}
+                >
+                  {scopeMeta.labelBn}
+                </span>
+              )}
+            </span>
+            <Switch checked={on} onCheckedChange={(v) => setLink(k, v)} />
+          </label>
+        );
+      })}
+
     </div>
   );
 }

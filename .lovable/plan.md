@@ -1,164 +1,148 @@
-## Plan 12 — Cross-Page/Cross-Surah Reflow & Dynamic Linking
+# Plan 13 — Dynamic Paragraph Linking: Scope-Aware Tool Integration
 
-This plan upgrades the existing reflow/linking primitives into a full cascading text-flow system with an in-app confirmation gate, and makes the Linking switch propagate **all** edits (Type Tool + Move Tool) according to the active scope.
+Wire the existing `useLinkingStore` + `effectiveScope()` primitives into the user-visible UI so the Linking switch becomes (a) visible per layer, (b) tool-aware (Move + Type), and (c) cross-layer-safe.
+
+No new dependencies. No new state shape. We fix a real bug in propagation by deriving the layer from the **slider's target**, not only from `selection.layerKind`.
 
 ---
 
-### Scope of work (4 files modified, 2 created)
+## Files modified (3)
 
 ```text
-src/state/editorStore.ts         (modified — add pendingReflow gate state)
-src/state/reflowStore.ts         (modified — add cascadeReflow + cross-page mechanics)
-src/lib/textReflow.ts            (modified — cross-page generator that returns a "diff plan")
-src/components/studio/FabricLines.tsx   (modified — intercept Enter/paste → guard dialog)
-src/components/studio/CrossPageReflowDialog.tsx  (new — confirmation AlertDialog)
-src/components/studio/PropertiesPanel.tsx (modified — linking now honoured in DSlider/LocalFields)
+src/components/studio/PropertiesPanel.tsx   (LinkingPanel + DSlider + CharacterPanel)
+src/state/overridesStore.ts                 (sync helper for layer→scope gating)
+src/state/editorStore.ts                    (no shape change — verify only)
 ```
 
-No new dependencies.
+No file creations, no schema changes.
 
 ---
 
-### Part A — Dynamic Linking propagation (Type + Move tools)
+## Part A — Derive the correct "layer" for each edit
 
-Today `patchScoped()` already fans out a patch to every layerKey matching the active scope. But several call-sites bypass it:
+Today every call site passes `selection?.layerKind ?? null` to `effectiveScope`. Problem: when the user clicks a **row** (not a sub-layer), `layerKind` is `undefined`, so `effectiveScope` returns the raw scope and the Linking switches are ignored entirely. Also, the **Arabic font slider** should always be gated by the arabic switch even if the user selected the bangla sub-layer.
 
-1. `LocalFields` (`dx`/`dy` numeric inputs) → calls `patchScoped` ✅ already correct.
-2. `SubLayerPanel` Y-offset slider → already uses `patchScoped` ✅.
-3. `DSlider` font/Y-offset sliders → already uses `patchScoped` ✅.
-4. `InlineTextEditor.onSave` → calls `patchLocal` directly. Text overrides are intentionally NOT fanned out (different rows hold different text).
-
-**New rule introduced by this plan:** the **Linking switch per sub-layer** (`useLinkingStore`) acts as a *gate* on scope. If Linking for the active layer is **OFF**, force scope = `general` for that edit even if the global scope picker shows `page`/`surah`/`global`. If **ON**, the scope picker value is respected.
-
-Implementation: introduce one helper in `overridesStore.ts`:
+Fix: introduce a tiny helper that maps each slider/control to its semantic layer.
 
 ```ts
-export function effectiveScope(scope: SelectionScope, layer: "arabic"|"bangla"|"symbol"|null): SelectionScope {
-  if (!layer) return scope;
-  const linking = useLinkingStore.getState()[layer];
-  return linking ? scope : "general";
+// in PropertiesPanel.tsx (local helper)
+type LinkLayer = "arabic" | "bangla" | "symbol";
+const KEY_TO_LAYER: Partial<Record<keyof GlobalOverrides, LinkLayer>> = {
+  arabicFontPx: "arabic",
+  arabicYOffset: "arabic",
+  banglaFontPx: "bangla",
+  banglaYOffset: "bangla",
+  symbolYOffset: "symbol",
+};
+```
+
+`DSlider` then resolves the layer as `KEY_TO_LAYER[k] ?? selection?.layerKind ?? null` before calling `effectiveScope`. This guarantees:
+- Arabic font slider → always gated by `linking.arabic`
+- Bangla Y slider → always gated by `linking.bangla`
+- Generic transform (`LocalFields` dx/dy) → uses `selection.layerKind`, falling back to `scope` when row-level
+
+For `LocalFields` (Move tool dx/dy) we keep `selection.layerKind`; when the user clicks a whole row (no sub-layer), we treat it as "all three layers" and gate using **logical AND** of the three switches — meaning the propagation only fans out if **all** are linked. This is the safe interpretation that matches the user's requirement "If Arabic linking is ON and Bangla linking is OFF: Bangla changes only affect current row."
+
+Helper added in `overridesStore.ts`:
+
+```ts
+export async function effectiveScopeForRow(scope: SelectionScope): Promise<SelectionScope> {
+  const { useLinkingStore } = await import("./linkingStore");
+  const s = useLinkingStore.getState();
+  return s.arabic && s.bangla && s.symbol ? scope : "general";
 }
 ```
 
-Then `DSlider`, `LocalFields`, `SubLayerPanel`, and the new cascade dialog all call `patchScoped(key, patch, effectiveScope(scope, selection.layerKind))`. This is the single source of truth for "linking honours scope".
-
-The Type Tool `InlineTextEditor` is **not** fanned out for `text`, but **structural changes** (Enter / overflow) ARE — that is Part B.
+`LocalFields.apply()` calls this when `selection.layerKind == null`, and `effectiveScope(scope, layerKind)` otherwise.
 
 ---
 
-### Part B — Interactive line-break + cascading reflow
+## Part B — Visual feedback in `LinkingPanel`
 
-#### B.1 — Intercept Enter & paste in `InlineTextEditor`
-
-Replace today's pure `onInput` handler with explicit key handling:
-
-```ts
-onKeyDown:
-  - if e.key === "Enter": e.preventDefault(); requestLineBreak(cursorBefore, cursorAfter);
-  - all other keys: default behaviour, then syncToStore.
-onPaste:
-  - e.preventDefault(); read text/plain; requestInsert(text);
-```
-
-`getTextAroundCursor()` already exists in `src/lib/textReflow.ts` and gives us `{before, after}` text strings.
-
-#### B.2 — Cascade planner (pure function, `textReflow.ts`)
-
-New function:
-
-```ts
-planCascade({
-  pages: PageData[],            // current pages from reflowStore
-  surahPageIds: string[],       // pages of the current surah (cascade boundary)
-  startPageIdx, startRowIdx,
-  layer: "arabic"|"bangla",
-  newCurrentText: string,       // text the row should hold after the edit
-  pushedText: string,           // text to flow into the NEXT row (may be "")
-  fontFamily, fontSize, availableWidth,
-}): {
-  rowUpdates: Array<{ pageId, rowIndex, layer, text }>,
-  crossesPage: boolean,
-  crossesSurah: boolean,
-  newPagesNeeded: number,       // # of synthetic pages tail-overflow forces
-}
-```
-
-Algorithm (pure, no store writes):
-1. Set `current row → newCurrentText`.
-2. Carry = `pushedText`.
-3. Walk forward row-by-row through the surah pages:
-   - For each downstream row read its **effective** text (override `text` or original).
-   - `combined = carry + " " + downstreamText`.
-   - `splitToFit(combined, ...)` → row gets `fits`, carry = `overflow`.
-   - Record the row update only if `fits !== downstreamText`.
-4. Track `crossesPage` (any update outside startPage) and `crossesSurah` (any update on a page whose surah ≠ startSurah; we can look this up via `reflowStore.distribution`).
-5. If `carry !== ""` after all rows, set `newPagesNeeded = Math.ceil(carry length / per-page capacity)` (best-effort estimate using `LINES_PER_PAGE`).
-
-This planner does not mutate state — it returns the diff so the dialog can show "এই পরিবর্তন N টি পেজ প্রভাবিত করবে" and the user can cancel cleanly.
-
-#### B.3 — `reflowStore.applyCascade(plan)`
-
-New action on `useReflowStore`:
-
-```ts
-applyCascade(plan): void {
-  // 1. Begin a single history group via beginSilent/endSilent.
-  // 2. For each rowUpdate: patchLocal(layerKey(...), { text }).
-  // 3. If plan.newPagesNeeded > 0 → trigger rebuild() to materialise extra pages.
-  //    (The existing pages array is regenerated from verses + overrides on rebuild.)
-  // 4. Capture ONE history entry labelled "টেক্সট রিফ্লো" with scope tag.
-}
-```
-
-Note on "new pages": because pages are rebuilt from `verses.json` + per-row font overrides, today the page count is derived. For text overflow that cannot fit existing rows of the surah, we fall back to triggering a `rebuild()` — the packer will create additional `vpage-N` pages naturally. This keeps the architecture invariant intact.
-
----
-
-### Part C — Confirmation dialog (`CrossPageReflowDialog.tsx`)
+Update the panel so each row shows the **currently active scope** as a colored badge and a glow when ON.
 
 ```tsx
-<AlertDialog open={!!pending} onOpenChange={...}>
-  <AlertDialogContent>
-    <AlertDialogTitle>লেআউট পরিবর্তন নিশ্চিত করুন?</AlertDialogTitle>
-    <AlertDialogDescription>
-      এই পরিবর্তনটির ফলে কিছু টেক্সট পরবর্তী পেজ {pending.crossesSurah && "ও সূরায়"} চলে যাচ্ছে।
-      মোট {pending.affectedPages} টি পেজ প্রভাবিত হবে।
-      আপনি কি নিশ্চিত যে আপনি লেআউট পরিবর্তন করতে চান?
-    </AlertDialogDescription>
-    <AlertDialogFooter>
-      <AlertDialogCancel onClick={cancel}>বাতিল</AlertDialogCancel>
-      <AlertDialogAction onClick={confirm} className="bg-red-600">হ্যাঁ, পরিবর্তন করুন</AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
+function LinkingPanel() {
+  const { arabic, bangla, symbol, setLink, setAll } = useLinkingStore();
+  const scope = useEditorStore((s) => s.scope);
+  const meta = SCOPE_META[scope];
+  const ScopeIcon = meta.icon;
+  const allOn = arabic && bangla && symbol;
+
+  const rows: Array<[LinkLayer, string]> = [
+    ["arabic", "আরবি লিংক"],
+    ["bangla", "বাংলা লিংক"],
+    ["symbol", "প্রতীক লিংক"],
+  ];
+
+  return (
+    <div className="...violet container...">
+      <header>প্যারাগ্রাফ লিংকিং  ·  <button setAll>...</button></header>
+
+      {rows.map(([k, label]) => {
+        const on = { arabic, bangla, symbol }[k];
+        return (
+          <label
+            className="..."
+            style={on ? { boxShadow: `0 0 0 1px ${meta.color}55`, background: `${meta.color}10` } : undefined}
+          >
+            <span className="flex items-center gap-1.5">
+              {on ? "🔗" : "⛓️‍💥"} {label}
+              {on && (
+                <span
+                  className="rounded px-1.5 py-0.5 text-[9px] font-bold"
+                  style={{ background: `${meta.color}22`, color: meta.color }}
+                >
+                  <ScopeIcon className="h-2.5 w-2.5 inline mr-0.5" />
+                  {meta.labelBn}
+                </span>
+              )}
+            </span>
+            <Switch checked={on} onCheckedChange={(v) => setLink(k, v)} />
+          </label>
+        );
+      })}
+    </div>
+  );
+}
 ```
 
-Triggering rules:
-- `crossesPage === false && crossesSurah === false` → apply immediately, no dialog.
-- Otherwise → store the plan in `editorStore.pendingReflow` and render the dialog. On confirm → `reflowStore.applyCascade(plan)`. On cancel → discard plan, restore editor text to pre-edit value.
-
-The dialog is mounted once at the `Workspace` level (so it survives row unmounts during reflow), listening to `useEditorStore((s) => s.pendingReflow)`.
+Result: a green "সকল" badge next to "আরবি লিংক" tells the user that arabic edits will fan out globally; turning the switch off removes the glow and the badge.
 
 ---
 
-### editorStore additions
+## Part C — Tool-aware propagation indicator on `DSlider`
 
-```ts
-pendingReflow: CascadePlan | null;
-setPendingReflow: (p: CascadePlan | null) => void;
+Add a small linked/unlinked icon next to the slider label that reflects whether **this** slider is currently going to fan out, given (scope, layer, switch). Pure visual — drives off the same `effectiveScope` decision.
+
+```tsx
+// inside DSlider, after we know `layerForGate`
+const linked = useLinkingStore((s) => layerForGate ? s[layerForGate] : false);
+const willFanOut = scope !== "general" && linked;
+// render <Link2 /> in violet when willFanOut, otherwise dimmed
 ```
+
+This makes the **Type Tool** (font/Y sliders) and the **Move Tool** (`LocalFields` dx/dy) both surface the same single-source-of-truth answer: "is this edit going to propagate?".
+
+`LocalFields` gets the same icon, computed from `effectiveScopeForRow` decision (all three linked) when `layerKind` is null.
 
 ---
 
-### Acceptance criteria
+## Part D — Verify `editorStore.selection.layerKind` is set on sub-layer clicks
 
-- Pressing **Enter** mid-line in any Arabic/Bangla row pushes trailing text into the next row.
-- Pressing **Enter** on an empty cursor creates an empty visual row and cascades following rows down.
-- When cascade stays inside the current page → no dialog.
-- When cascade pushes any text to **next page** or **next surah** → AlertDialog appears in Bengali with the required message; "বাতিল" reverts the edit, "হ্যাঁ" applies it.
-- Linking switch ON for a layer + scope=page/surah/global → Move/Type-tool typography edits propagate as today.
-- Linking switch OFF for a layer → edits stay local regardless of the scope picker.
-- Symbol/Arabic/Bangla vertical alignment of reflowed rows is preserved (no extra dy/dx writes during cascade — text-only updates).
+`FabricLines.tsx` already sets `layerKind: "arabic"` and `layerKind: "bangla"` on the two sub-layer click handlers (lines 290 and 373). Verify the symbol-layer click also writes `layerKind: "symbol"`; if missing, add it in the same click handler that produces `kind: "layer"` for the symbol element. No store-shape changes; `Selection.layerKind` already accepts `"symbol"`.
+
+---
+
+## Acceptance criteria
+
+- Click **arabic** sub-layer → turn **Arabic Link** ON → scope=**সূরা** → drag Arabic font slider → all arabic rows of that surah update; bangla/symbol unchanged.
+- Same setup, switch OFF → only the selected arabic row updates.
+- Bangla switch OFF + Arabic switch ON → adjusting bangla Y slider only touches the local row, even with scope=সূরা.
+- Symbol switch behaves identically and independently.
+- `LinkingPanel` shows the active scope badge (with `SCOPE_META` color) next to each ON switch; OFF switches show no badge and no glow.
+- Each `DSlider` shows a violet `Link2` icon when its edit will fan out; dimmed otherwise.
+- Move tool dx/dy on a whole-row selection only fans out when **all three** layer switches are ON (safe default).
 - `npx tsc --noEmit` exits 0 and `npm run build` exits 0.
 
-Commit: `feat(Plan12): cross-page reflow cascade, linking-aware scope gating, confirmation dialog`
+Commit: `feat(Plan13): scope-aware linking UI, tool-aware propagation, layer protection`
