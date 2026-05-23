@@ -14,6 +14,8 @@
  * heuristic estimates when running server-side.
  */
 
+import { splitArabicWords } from "./wordSplit";
+
 /** One OffscreenCanvas + 2D context per font key, reused across calls. */
 const _ctxCache = new Map<string, OffscreenCanvasRenderingContext2D>();
 
@@ -133,10 +135,8 @@ export function splitToFitForLayer(
 
   // Arabic path — splitArabicWords is whitespace-based today, but kept as
   // a named seam so future Arabic-specific tokenisation slots in cleanly.
-  // Import inline to avoid a circular module ref.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { splitArabicWords } = require("./wordSplit") as typeof import("./wordSplit");
   const words = splitArabicWords(text);
+
   if (words.length === 0) return { fits: text, overflow: "" };
   if (words.length === 1) {
     // Single token — keep whole (oversize words don't glyph-break).
