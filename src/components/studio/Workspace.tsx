@@ -11,6 +11,7 @@ import { ResizeDivider } from "./ResizeDivider";
 import { TopBar } from "./TopBar";
 import { SelectionPanel } from "./SelectionPanel";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { useOverridesStore } from "@/state/overridesStore";
 import { useEditorStore } from "@/state/editorStore";
 import { useReflowStore } from "@/state/reflowStore";
