@@ -567,7 +567,29 @@ function InlineTextEditor({
     const { fits, overflow } = splitToFit(currentText, availableWidth, fontFamily, fontSize);
 
     if (overflow) {
-      // Push overflow forward into subsequent rows.
+      const base = getReflowBase();
+
+      // Link OFF for this layer → clip to current row, warn user, do not cascade.
+      if (!base.cascade) {
+        lastSavedRef.current = fits;
+        useOverridesStore.getState().patchLocal(lk, { text: fits });
+        el.textContent = fits;
+        try {
+          const sel = window.getSelection();
+          if (sel) {
+            const range = document.createRange();
+            if (el.lastChild) range.setStartAfter(el.lastChild);
+            else range.setStart(el, 0);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        } catch { /* ignore */ }
+        toast.warning("লিংক বন্ধ — ওভারফ্লো অন্য সারিতে যাবে না", { id: `link-off-${lk}` });
+        return;
+      }
+
+      // Cascade enabled — push overflow forward into subsequent rows.
       lastSavedRef.current = fits;
       useOverridesStore.getState().patchLocal(lk, { text: fits });
       el.textContent = fits;
@@ -583,7 +605,6 @@ function InlineTextEditor({
         }
       } catch { /* ignore */ }
 
-      const base = getReflowBase();
       const nextRowIdx = rowIndex + 1;
       const nextOnPage = nextRowIdx < lines.length;
       const targetPageId = nextOnPage
@@ -595,8 +616,11 @@ function InlineTextEditor({
           })();
       const targetRowIdx = nextOnPage ? nextRowIdx : 0;
 
+      // Strip non-reflow props before passing into reflowFrom.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { cascade: _c, scopedPageIds: _s, ...reflowArgs } = base;
       reflowFrom({
-        ...base,
+        ...reflowArgs,
         startPageId: targetPageId,
         startRowIndex: targetRowIdx,
         startOverflow: overflow,
@@ -608,12 +632,16 @@ function InlineTextEditor({
     const currentWidth = measureTextWidth(currentText, fontFamily, fontSize);
     if (currentWidth < availableWidth - 20) {
       const base = getReflowBase();
+      if (!base.cascade) return; // link OFF → don't pull from other rows either
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { cascade: _c, scopedPageIds: _s, ...reflowArgs } = base;
       backFillFrom({
-        ...base,
+        ...reflowArgs,
         startPageId: pageId,
         startRowIndex: rowIndex,
       });
     }
+
   };
 
   const handleInput = () => {
