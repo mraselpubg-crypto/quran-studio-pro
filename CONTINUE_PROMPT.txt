@@ -132,33 +132,65 @@ Order: **live → check → code → verify → commit → handoff files → com
 
 ---
 
-## 🎯 CURRENT PLAN — Plan 19: Collapsible Surah Navigation Sidebar & Search (IMPLEMENT NEXT)
+## ✅ Plan 19 — Complete All-114-Surah Sidebar (still active)
 
-### Problem
-- Navigating the flat, unorganized list of 600+ page thumbnails in the sidebar is difficult and lacks context.
-- There is no search functionality to jump to a specific Surah by name or number.
+> Keep Plan 19 as the current implementation target until it is fully done.
+
+## 🎯 CURRENT PLAN — Plan 19: Complete All-114-Surah Sidebar (IMPLEMENT NEXT)
+
+### Problem (Audit Finding — 2026-05-23)
+`PageList.tsx` already has collapsible Surah grouping + search UI. But:
+- `SURAH_NAMES` map has only **9 of 114** Bengali names → remaining 105 show `"সূরা N"`
+- `SURAH_NAMES_AR` map has only **9 of 114** Arabic names
+- No English transliteration map → English search is broken
+- Surah header click only toggles expand — does NOT navigate canvas to that Surah's first page
+- No verse count shown in header
 
 ### Tasks
 
-**1. Group Pages by Surah in PageList**
-- Re-architect `PageList.tsx` to group page thumbnails under collapsible Surah headers using the `distribution` mapping from `useReflowStore`.
-- Display Surah number, name, and total page count in the header.
+**1. Complete `SURAH_NAMES` — all 114 Bengali transliterated names**
+- File: `src/components/studio/PageList.tsx`
+- Fill the full `Record<number, string>` for surahs 1–114
 
-**2. Add Search Box**
-- Add a search input at the top of the PageList sidebar.
-- Dynamically filter Surahs by number, Bengali name, or English name as the user types.
+**2. Complete `SURAH_NAMES_AR` — all 114 Arabic names**
+- File: `src/components/studio/PageList.tsx`
+- Fill the full `Record<number, string>` for surahs 1–114
 
-**3. Selection & Scroll Sync**
-- Clicking a Surah header expands it and scrolls the canvas directly to its first page.
-- Maintain smooth virtualized rendering during expand/collapse.
+**3. Add `SURAH_NAMES_EN` — English transliteration map (1–114)**
+- File: `src/components/studio/PageList.tsx`
+- Update search filter to also match English names (e.g. "Al-Baqarah")
+
+**4. Surah header click → navigate canvas to first page**
+- File: `src/components/studio/PageList.tsx`
+- On header click: call `onSelect(pages[0].pageId)` after toggle
+
+**5. Add ayah count to Surah header**
+- Add `SURAH_AYAH_COUNT: Record<number, number>` (114 entries)
+- Display e.g. `(٧ آيات)` or `(৭ আয়াত)` in header
+
+**6. New Playwright verification script**
+- Create `scripts/verify-sidebar.mjs`
+- Test: type "আল-বাকারা" → only Surah 2 visible → click header → canvas navigates
+
+### Files to modify
+| File | Change |
+|------|--------|
+| `src/components/studio/PageList.tsx` | Add all 114 names + EN map + navigation on click + ayah count |
+| `scripts/verify-sidebar.mjs` | **NEW** — Playwright sidebar smoke |
 
 ### Verification
-- `npx tsc --noEmit` + `npm run build`
-- Run Playwright test script `scripts/verify-sidebar.mjs` (to be created in Plan 19).
+```powershell
+npx tsc --noEmit
+npm run build
+node scripts/verify-editor.mjs
+node scripts/verify-reflow.mjs
+node scripts/verify-active-page.mjs
+node scripts/verify-sidebar.mjs
+```
 
 ### Commit message
 ```
-feat(Plan19): collapsible Surah navigation sidebar and search integration
+feat(Plan19): complete all-114-Surah sidebar with Bengali/Arabic/English names, search, and navigation
 ```
 
 ---

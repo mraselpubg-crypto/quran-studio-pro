@@ -18,6 +18,9 @@ npm run dev
 See CONTINUE_PROMPT.txt → "CURRENT PLAN" section.
 (Now: Plan 19 — Collapsible Surah Navigation Sidebar & Search)
 
+## NEXT QUEUED PLAN
+Plan 20 — Paragraph reflow, independent layers, reset/history fixes.
+Read PLAN20_DESIGN.md after Plan 19 is complete.
 ## WHEN YOU FINISH A PLAN (mandatory)
 1. tsc + build + verify scripts
 2. git commit + push (feature)

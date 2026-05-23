@@ -94,6 +94,7 @@ git push origin main
 | Plan 17 | ✅ Active Page Context (navigation, row flash, click history) |
 | Plan 18 | ✅ Context Page Unification + verify-active-page + infinite loop fix |
 | **Plan 19** | ⬜ **এখন implement** — Collapsible Surah Navigation Sidebar & Search |
+| **Plan 20** | ⬜ **queued** — Paragraph reflow, independent layers, reset/history fixes |
 
 বিস্তারিত: **`CONTINUE_PROMPT.txt`** → "Plan 19"
 

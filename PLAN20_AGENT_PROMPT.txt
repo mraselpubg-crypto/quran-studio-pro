@@ -1,0 +1,77 @@
+You are the working agent for Quran Studio Pro — Plan 20.
+
+Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+Branch: main
+Local: c:\xampp\htdocs\q01\quran-studio-pro
+
+Read in this order:
+1. AGENT_README.md
+2. CONTINUE_PROMPT.txt
+3. PLAN20_DESIGN.md
+4. WORKING_AGENT_PROMPT.txt
+
+Important:
+- Implement only Plan 20.
+- Do not touch Plan 19 scope.
+- Reuse the existing editor/reflow/history/reset pipeline.
+- Keep Arabic and Bangla movement independent unless link toggles are on.
+- Keep cross-page/surah spill on the existing confirm dialog path.
+
+Plan 20 goals:
+A. Paragraph-style inline reflow
+- Arabic/Bangla edits should backfill empty space like a paragraph text tool.
+- Enter should push overflow forward.
+- Backspace should collapse line breaks and pull text upward.
+
+B. Independent layer movement
+- Arabic and Bangla rows must move separately.
+- Linked movement should be optional fan-out, not forced coupling.
+
+C. Large-change staging
+- Large edits should stage locally, show the existing warning/progress UI, then apply in chunks.
+- Use the current confirm dialog flow for cross-page / cross-surah spill.
+
+D. Reset + session history fixes
+- Fix `সব রিসেট করুন`.
+- Make history / undo / redo session-scoped only.
+- Reset should respect the current scope and the current editor session.
+
+Primary files likely involved:
+- src/components/studio/FabricLines.tsx
+- src/lib/textReflow.ts
+- src/lib/typographyReflow.ts
+- src/lib/reflowScope.ts
+- src/state/editorStore.ts
+- src/state/reflowStore.ts
+- src/state/overridesStore.ts
+- src/components/studio/ScopeImpactWarningDialog.tsx
+- src/components/studio/CrossPageReflowDialog.tsx
+- src/hooks/useLargeChangeGuard.ts
+- src/components/studio/PropertiesPanel.tsx
+- src/components/studio/CanvasToolbar.tsx
+- src/state/historyStore.ts
+- src/components/studio/Workspace.tsx
+
+Key functions/utilities to reuse:
+- getTextAroundCursor()
+- planCascade()
+- reflowLayerText()
+- reflowFromAsync()
+- backFillFrom()
+- effectiveReflowScope()
+- patchScoped()
+- getScopedLayerKeys()
+- resetScoped()
+- resetToSessionBaseline()
+- markSessionStart()
+- sessionEntries()
+- restoreTo()
+- useLargeChangeGuard()
+
+Verification:
+- npx tsc --noEmit
+- npm run build
+- node scripts/verify-editor.mjs
+- node scripts/verify-reflow.mjs
+
+After implementation, update the handoff files and push the changes as the repo protocol requires.
