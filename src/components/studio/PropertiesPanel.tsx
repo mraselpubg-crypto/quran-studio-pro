@@ -280,7 +280,10 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
     if (!isLocalScope) {
       setGlobal(k, v);
     } else {
-      void patchScoped(selKey!, { [localField!]: v } as never, scope);
+      void (async () => {
+        const eff = await effectiveScope(scope, selection?.layerKind ?? null);
+        void patchScoped(selKey!, { [localField!]: v } as never, eff);
+      })();
     }
   };
 
@@ -289,7 +292,10 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
     if (!isLocalScope) {
       setGlobal(k, undefined);
     } else {
-      void patchScoped(selKey!, { [localField!]: undefined } as never, scope);
+      void (async () => {
+        const eff = await effectiveScope(scope, selection?.layerKind ?? null);
+        void patchScoped(selKey!, { [localField!]: undefined } as never, eff);
+      })();
     }
   };
 
