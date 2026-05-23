@@ -213,6 +213,21 @@ export const symbolKey = (
  */
 import type { SelectionScope } from "./editorStore";
 
+/**
+ * Linking-aware scope gate.
+ * If linking for the active sub-layer is OFF, force scope=general so the
+ * edit stays local. If ON, respect the scope picker value.
+ */
+export async function effectiveScope(
+  scope: SelectionScope,
+  layer: "arabic" | "bangla" | "symbol" | null | undefined,
+): Promise<SelectionScope> {
+  if (!layer) return scope;
+  const { useLinkingStore } = await import("./linkingStore");
+  const linked = useLinkingStore.getState()[layer];
+  return linked ? scope : "general";
+}
+
 function parseLayerKey(key: string): { kind: "layer" | "row" | "word"; pageId: string; rowIndex: number; layer?: string; wordIndex?: number } | null {
   const parts = key.split(":");
   if (parts[0] === "layer" && parts.length >= 4) {
