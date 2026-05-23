@@ -1,148 +1,107 @@
-# Plan 13 — Dynamic Paragraph Linking: Scope-Aware Tool Integration
+# Plan 16 — Linked Area-Text Auto Reflow
 
-Wire the existing `useLinkingStore` + `effectiveScope()` primitives into the user-visible UI so the Linking switch becomes (a) visible per layer, (b) tool-aware (Move + Type), and (c) cross-layer-safe.
+InDesign-style Area Text: যখন একটি লেয়ারের টেক্সট টাইপিং বা টাইপোগ্রাফি পরিবর্তনের (fontPx / leading / tracking / hScale) কারণে ওভারফ্লো করে, তখন সেই লেয়ারের Linking switch + Editor scope অনুযায়ী পরবর্তী row/page-এ ক্যাসকেড হবে।
 
-No new dependencies. No new state shape. We fix a real bug in propagation by deriving the layer from the **slider's target**, not only from `selection.layerKind`.
+এক ইঞ্জিন, এক স্কোপ-হেল্পার, সব এন্ট্রি পয়েন্টে ব্যবহৃত:
+- `InlineTextEditor` (টেক্সট এডিট, Enter, paste)
+- `CharacterPanel` / `DSlider` (টাইপোগ্রাফি)
 
----
+Linking **OFF** ⇒ অন্য সারিতে কখনো ছড়াবে না (overflow হলে clip + toast)।
+Linking **ON** ⇒ editor scope (general/page/surah/global) মেনে চলবে।
+Cross-page/surah ⇒ বিদ্যমান `CrossPageReflowDialog` + `useLargeChangeGuard` রিইউজ।
 
-## Files modified (3)
-
-```text
-src/components/studio/PropertiesPanel.tsx   (LinkingPanel + DSlider + CharacterPanel)
-src/state/overridesStore.ts                 (sync helper for layer→scope gating)
-src/state/editorStore.ts                    (no shape change — verify only)
-```
-
-No file creations, no schema changes.
-
----
-
-## Part A — Derive the correct "layer" for each edit
-
-Today every call site passes `selection?.layerKind ?? null` to `effectiveScope`. Problem: when the user clicks a **row** (not a sub-layer), `layerKind` is `undefined`, so `effectiveScope` returns the raw scope and the Linking switches are ignored entirely. Also, the **Arabic font slider** should always be gated by the arabic switch even if the user selected the bangla sub-layer.
-
-Fix: introduce a tiny helper that maps each slider/control to its semantic layer.
+## Step 1 — `src/lib/reflowScope.ts` (নতুন)
 
 ```ts
-// in PropertiesPanel.tsx (local helper)
-type LinkLayer = "arabic" | "bangla" | "symbol";
-const KEY_TO_LAYER: Partial<Record<keyof GlobalOverrides, LinkLayer>> = {
-  arabicFontPx: "arabic",
-  arabicYOffset: "arabic",
-  banglaFontPx: "bangla",
-  banglaYOffset: "bangla",
-  symbolYOffset: "symbol",
+type ReflowScopeResult = {
+  cascade: boolean;
+  pageIds: string[];
+  layer: "arabic" | "bangla";
 };
+effectiveReflowScope(editorScope, layer, pageId): ReflowScopeResult
 ```
 
-`DSlider` then resolves the layer as `KEY_TO_LAYER[k] ?? selection?.layerKind ?? null` before calling `effectiveScope`. This guarantees:
-- Arabic font slider → always gated by `linking.arabic`
-- Bangla Y slider → always gated by `linking.bangla`
-- Generic transform (`LocalFields` dx/dy) → uses `selection.layerKind`, falling back to `scope` when row-level
+| Link (layer) | scope    | cascade | pageIds                  |
+|--------------|----------|---------|--------------------------|
+| OFF          | any      | false   | [pageId]                 |
+| ON           | general  | true    | [pageId]                 |
+| ON           | page     | true    | [pageId]                 |
+| ON           | surah    | true    | distribution → surah ids |
+| ON           | global   | true    | all page ids             |
 
-For `LocalFields` (Move tool dx/dy) we keep `selection.layerKind`; when the user clicks a whole row (no sub-layer), we treat it as "all three layers" and gate using **logical AND** of the three switches — meaning the propagation only fans out if **all** are linked. This is the safe interpretation that matches the user's requirement "If Arabic linking is ON and Bangla linking is OFF: Bangla changes only affect current row."
+`useLinkingStore` + `useReflowStore.distribution` থেকে পড়বে। `symbol` লেয়ারে টেক্সট reflow নেই — স্কিপ।
 
-Helper added in `overridesStore.ts`:
+## Step 2 — `src/lib/textReflow.ts` এক্সটেন্ড
 
-```ts
-export async function effectiveScopeForRow(scope: SelectionScope): Promise<SelectionScope> {
-  const { useLinkingStore } = await import("./linkingStore");
-  const s = useLinkingStore.getState();
-  return s.arabic && s.bangla && s.symbol ? scope : "general";
-}
-```
+`reflowLayerText({ pageId, rowIndex, layer, reason, fontFamily, availableWidth })`:
+1. `effectiveReflowScope` রিসলভ। `cascade=false` হলে শুধু বর্তমান row মাপ; overflow → `{ clipped: true }` রিটার্ন (caller toast দেখাবে); অন্য row-তে `patchLocal` নয়।
+2. `getEffectiveText` দিয়ে টেক্সট আনো।
+3. `splitToFitForLayer` (Step 5)। Overflow → `reflowFrom`, শুধু `result.pageIds`-এ সীমিত।
+4. Underflow + room → `backFillFrom` (same pageIds)।
+5. আগে `planCascade`; `crossesPage`/`crossesSurah` → `editorStore.setPendingReflow` (ডায়ালগ confirm/cancel handle করে)।
 
-`LocalFields.apply()` calls this when `selection.layerKind == null`, and `effectiveScope(scope, layerKind)` otherwise.
+## Step 3 — Typography-triggered reflow
 
----
+`src/state/overridesStore.ts` → নতুন `patchTypographyScoped(repKey, patch, scope)`:
+- প্রথমে বিদ্যমান `patchScoped` কল করে।
+- তারপর target layerKeys ইটারেট করে প্রতিটির জন্য `queueMicrotask(() => reflowLayerText(...))`।
+- Whitelist: `fontPx`, `leading`, `tracking`, `hScale`।
+- surah/global বা affected rows ≥ 20 → `useLargeChangeGuard.request` দিয়ে wrap।
 
-## Part B — Visual feedback in `LinkingPanel`
+`CharacterPanel` ও `DSlider`-এ শুধু এই চারটি ফিল্ডের পাথ `patchTypographyScoped`-এ রাউট করো; বাকি স্টাইল ফিল্ড আগের মতোই `patchScoped`।
 
-Update the panel so each row shows the **currently active scope** as a colored badge and a glow when ON.
+## Step 4 — `FabricLines.tsx` unify
 
-```tsx
-function LinkingPanel() {
-  const { arabic, bangla, symbol, setLink, setAll } = useLinkingStore();
-  const scope = useEditorStore((s) => s.scope);
-  const meta = SCOPE_META[scope];
-  const ScopeIcon = meta.icon;
-  const allOn = arabic && bangla && symbol;
+- `getReflowBase()` সরিয়ে `effectiveReflowScope(editorStore.scope, layer, pageId)` ব্যবহার।
+- `checkOverflow`: `cascade=false` + overflow → টেক্সট বর্তমান row-তেই থাকুক, `toast.warning("লিংক বন্ধ — ওভারফ্লো অন্য সারিতে যাবে না")`, `reflowFrom` কল **নয়**।
+- Enter handler একই হেল্পার ব্যবহার করবে (ডুপ্লিকেট surah-id construction সরাও)।
 
-  const rows: Array<[LinkLayer, string]> = [
-    ["arabic", "আরবি লিংক"],
-    ["bangla", "বাংলা লিংক"],
-    ["symbol", "প্রতীক লিংক"],
-  ];
+## Step 5 — Arabic-aware splitter
 
-  return (
-    <div className="...violet container...">
-      <header>প্যারাগ্রাফ লিংকিং  ·  <button setAll>...</button></header>
+`src/lib/canvasMeasure.ts` → `splitToFitForLayer(text, maxWidth, font, size, layer)`:
+- `layer === "arabic"` → `splitArabicWords` (`src/lib/wordSplit.ts`) + cumulative `measureTextWidthCanvas`। একক oversize শব্দ পুরো রাখা হবে (ডকুমেন্টেড)।
+- অন্যথায় বিদ্যমান `splitToFitCanvas`।
 
-      {rows.map(([k, label]) => {
-        const on = { arabic, bangla, symbol }[k];
-        return (
-          <label
-            className="..."
-            style={on ? { boxShadow: `0 0 0 1px ${meta.color}55`, background: `${meta.color}10` } : undefined}
-          >
-            <span className="flex items-center gap-1.5">
-              {on ? "🔗" : "⛓️‍💥"} {label}
-              {on && (
-                <span
-                  className="rounded px-1.5 py-0.5 text-[9px] font-bold"
-                  style={{ background: `${meta.color}22`, color: meta.color }}
-                >
-                  <ScopeIcon className="h-2.5 w-2.5 inline mr-0.5" />
-                  {meta.labelBn}
-                </span>
-              )}
-            </span>
-            <Switch checked={on} onCheckedChange={(v) => setLink(k, v)} />
-          </label>
-        );
-      })}
-    </div>
-  );
-}
-```
+`textReflow.ts`-এর `splitToFit`, `reflowFrom`, `backFillFrom`, `planCascade` — সব `layer` প্যারামিটার নেবে এবং `splitToFitForLayer`-এ রাউট করবে।
 
-Result: a green "সকল" badge next to "আরবি লিংক" tells the user that arabic edits will fan out globally; turning the switch off removes the glow and the badge.
+## Step 6 — `PropertiesPanel.tsx` LinkingPanel copy
 
----
+- Title: **"এরিয়া টেক্সট লিংক"**
+- ON badge সাবটাইটেল: *"ওভারফ্লো এই স্কোপে রিফ্লো হবে"*
+- OFF সাবটাইটেল: *"শুধু এই সারি — ওভারফ্লো অন্য লাইনে যাবে না"*
 
-## Part C — Tool-aware propagation indicator on `DSlider`
+## Step 7 — Verification
 
-Add a small linked/unlinked icon next to the slider label that reflects whether **this** slider is currently going to fan out, given (scope, layer, switch). Pure visual — drives off the same `effectiveScope` decision.
+- নতুন `scripts/verify-reflow.mjs` (Playwright): editor → type tool → arabic row → linking ON + scope=page → fontPx বড় করো → পরের row-এ tail text এসেছে কিনা assert; তারপর linking OFF → কোনো cross-row পরিবর্তন নেই + toast assert।
+- `npx tsc --noEmit`, `npm run build`, `node scripts/verify-editor.mjs`, `node scripts/verify-reflow.mjs`।
 
-```tsx
-// inside DSlider, after we know `layerForGate`
-const linked = useLinkingStore((s) => layerForGate ? s[layerForGate] : false);
-const willFanOut = scope !== "general" && linked;
-// render <Link2 /> in violet when willFanOut, otherwise dimmed
-```
+## Files touched
 
-This makes the **Type Tool** (font/Y sliders) and the **Move Tool** (`LocalFields` dx/dy) both surface the same single-source-of-truth answer: "is this edit going to propagate?".
+| File | Change |
+|------|--------|
+| `src/lib/reflowScope.ts` | NEW |
+| `src/lib/textReflow.ts` | `reflowLayerText`, layer-aware split |
+| `src/lib/canvasMeasure.ts` | `splitToFitForLayer` (arabic path) |
+| `src/state/overridesStore.ts` | `patchTypographyScoped` + microtask reflow |
+| `src/components/studio/FabricLines.tsx` | unify scope helper, link-OFF clip+toast |
+| `src/components/studio/PropertiesPanel.tsx` | typo fields → `patchTypographyScoped`, copy |
+| `src/hooks/useLargeChangeGuard.ts` | reuse for typography fan-out |
+| `scripts/verify-reflow.mjs` | NEW E2E |
+| `CONTINUE_PROMPT.txt` | Plan 16 ✅ + Plan 17 handoff |
 
-`LocalFields` gets the same icon, computed from `effectiveScopeForRow` decision (all three linked) when `layerKind` is null.
+## Invariants
 
----
+- `text` ফিল্ড কখনো `patchScoped` fan-out নয়।
+- `reflowLayerText` `rebuild()` কল করে না — শুধু local `text` overrides।
+- সব Hooks early return এর আগে।
+- `confirm()` নয় — AlertDialog।
+- Symbol layer text reflow থেকে বাদ।
+- GitHub token চ্যাটে নয়।
 
-## Part D — Verify `editorStore.selection.layerKind` is set on sub-layer clicks
+## Env note
 
-`FabricLines.tsx` already sets `layerKind: "arabic"` and `layerKind: "bangla"` on the two sub-layer click handlers (lines 290 and 373). Verify the symbol-layer click also writes `layerKind: "symbol"`; if missing, add it in the same click handler that produces `kind: "layer"` for the symbol element. No store-shape changes; `Selection.layerKind` already accepts `"symbol"`.
+আমার sandbox-এ `c:\xampp\...` লোকাল পাথ বা আপনার dev সার্ভার (`localhost:8080`) নেই — কাজটি Lovable repo-তেই হবে (একই কোডবেস)। `git pull/push` Lovable নিজেই হ্যান্ডেল করে; আমি ম্যানুয়াল git চালাবো না। Verification এই sandbox-এর build output + (যদি সম্ভব হয়) preview-তে হবে।
 
----
+## Commit
 
-## Acceptance criteria
-
-- Click **arabic** sub-layer → turn **Arabic Link** ON → scope=**সূরা** → drag Arabic font slider → all arabic rows of that surah update; bangla/symbol unchanged.
-- Same setup, switch OFF → only the selected arabic row updates.
-- Bangla switch OFF + Arabic switch ON → adjusting bangla Y slider only touches the local row, even with scope=সূরা.
-- Symbol switch behaves identically and independently.
-- `LinkingPanel` shows the active scope badge (with `SCOPE_META` color) next to each ON switch; OFF switches show no badge and no glow.
-- Each `DSlider` shows a violet `Link2` icon when its edit will fan out; dimmed otherwise.
-- Move tool dx/dy on a whole-row selection only fans out when **all three** layer switches are ON (safe default).
-- `npx tsc --noEmit` exits 0 and `npm run build` exits 0.
-
-Commit: `feat(Plan13): scope-aware linking UI, tool-aware propagation, layer protection`
+`feat(Plan16): linked area-text auto reflow on typography and scope`
