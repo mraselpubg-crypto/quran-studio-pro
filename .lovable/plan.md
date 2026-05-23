@@ -81,3 +81,15 @@
 
 ### Checker prompt (next loop)
 Provided in chat reply after the build commit.
+
+---
+
+## ✅ Plan 11 — COMPLETED (2026-05-23)
+
+- In-app scope-aware reset dialog (no more `window.confirm`)
+- Per-row Symbol/Arabic/Bengali sub-layer Y-offset sliders
+- Linking toggles (arabic/bangla/symbol) with scope-aware fan-out via `patchScoped`
+- Header Save button + chevron dropdown with Auto-save toggle (30s interval)
+
+PENDING:
+- Plan 12 — Advanced Exporting (PDF & Image Generation)
