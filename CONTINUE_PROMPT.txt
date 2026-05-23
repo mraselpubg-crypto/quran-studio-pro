@@ -35,42 +35,11 @@ CURRENT VERIFIED STATE (2026-05-23 — verified by Antigravity checker)
   Phase 6 (Keyboard Shortcuts)   → ✅ Done
   Plan 10 (Per-Word Typography)  → ✅ Done (Colors/spacing per word working)
   
-  PLAN 11 (Mobile Edit Mode)     → ❌ Not started  ← NEXT TASK
+  PLAN 11 (TBD)                  → ❌ Not started  ← NEXT TASK
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PLAN 11 — Mobile Edit Mode & Responsiveness (মোবাইল এডিটিং সাপোর্ট) [CURRENT TASK]
+PLAN 11 — (To Be Decided) [CURRENT TASK]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Goal:
-  Optimize the Studio Al-Qalam editor interface so it is usable on mobile 
-  devices and smaller screens (tablets). Ensure the sidebars can be toggled
-  (hidden/shown) and the main canvas scales correctly.
-
-Changes required:
-
-1. Responsive Layout
-   - Add a hamburger menu or floating action button (FAB) for mobile screens (`< 768px`) to toggle the left sidebar (PageList).
-   - Ensure the right sidebar (PropertiesPanel/Inspector) is also collapsible or appears as an overlay/bottom sheet on mobile screens.
-
-2. Touch-Friendly Controls
-   - Ensure the `EditorControls` (Zoom, Scope selection) wrap neatly or use a scrollable row on small screens.
-   - Increase touch targets for small buttons if necessary.
-
-3. Canvas Scaling
-   - Ensure the main `Workspace` area or `FabricLines` container scales gracefully.
-   - Prevent horizontal scrolling for the main UI structure (allow canvas horizontal scroll if needed, but the layout itself shouldn't break).
-
-ACCEPTANCE CRITERIA:
-  ✓ On a mobile viewport (<768px), the left sidebar is hidden by default and can be toggled.
-  ✓ The UI does not break horizontally on small screens.
-  ✓ npx tsc --noEmit exits 0
-  ✓ npm run build exits 0
-
-Commit: "feat(Plan11): mobile edit mode and responsive layout"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PENDING AFTER PLAN 11
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Plan 12 — Advanced Exporting (PDF & Image Generation)
-  Plan 13 — Audio Sync & Playback
+অপেক্ষা করুন: User (Rasel) পরবর্তী কাজ (Plan 11) সম্পর্কে বিস্তারিত নির্দেশনা দেবেন।
+তার নির্দেশনা না পাওয়া পর্যন্ত এই ফাইলে নতুন কোনো কাজ শুরু করবেন না।
