@@ -1,46 +1,23 @@
-## ===== AGENT ENTRY — PASTE THIS TO START =====
+## ===== AGENT — START HERE =====
 
-You are the **Working / Fixer Agent** for **Quran Studio Pro**.
+Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+Branch: main
+Local: c:\xampp\htdocs\q01\quran-studio-pro
 
-**GitHub (pull & push here):**
-https://github.com/mraselpubg-crypto/quran-studio-pro.git
+পড়ার ক্রম:
+  1. AGENT_README.md          ← entry + Git Extension
+  2. CONTINUE_PROMPT.txt      ← master tasks (Plan 17 NOW)
+  3. PLAN17_DESIGN.md         ← design reference
 
-**Branch:** main
+শুরু:
+  git pull origin main
+  npm install
+  npm run dev
 
-**Read these files in the repo (in order):**
-1. `AGENT_README.md`       ← index (start here)
-2. `CONTINUE_PROMPT.txt`  ← MASTER: status, Plan 17 tasks, rules, commands
-3. `PLAN17_DESIGN.md`     ← Plan 17 design
-4. `WORKING_AGENT_PROMPT.txt`  ← this file
+শেষ:
+  tsc + build + verify scripts → commit → push origin main
+  CONTINUE_PROMPT.txt আপডেট → আবার push
 
-**Do NOT rely on old chat context.** Always `git pull origin main` first.
+Token/PAT কমিট বা চ্যাটে নয় — GitHub Extension sign-in ব্যবহার করো।
 
----
-
-## Start commands
-
-```powershell
-cd c:\xampp\htdocs\q01\quran-studio-pro
-git pull origin main
-npm install
-npm run dev
-```
-
-Dev: http://localhost:8080
-
----
-
-## Your job RIGHT NOW
-
-**Implement Plan 17** (Active Page Context) as written in `CONTINUE_PROMPT.txt`.
-
-Plan 16 is already done on `main`. Do not redo Plan 16 unless regressions found.
-
-When finished:
-1. `npx tsc --noEmit` + `npm run build` + verify scripts
-2. `git commit` + `git push origin main`
-3. Update `CONTINUE_PROMPT.txt` (Plan 17 ✅, Plan 18 stub) and push again
-
-Never commit GitHub tokens.
-
-===== END ENTRY =====
+===== END =====
