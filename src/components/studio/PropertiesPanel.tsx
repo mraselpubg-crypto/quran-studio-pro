@@ -24,6 +24,16 @@ const SCOPE_META: Record<SelectionScope, { labelBn: string; color: string; icon:
 };
 const SCOPES: SelectionScope[] = ["general", "page", "surah", "global"];
 
+type LinkLayer = "arabic" | "bangla" | "symbol";
+const KEY_TO_LAYER: Partial<Record<keyof GlobalOverrides, LinkLayer>> = {
+  arabicFontPx: "arabic",
+  arabicYOffset: "arabic",
+  banglaFontPx: "bangla",
+  banglaYOffset: "bangla",
+  symbolYOffset: "symbol",
+};
+
+
 type Tab = "controls" | "history";
 
 export function PropertiesPanel() {
