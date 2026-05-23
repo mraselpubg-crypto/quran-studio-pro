@@ -591,15 +591,38 @@ function LinkingPanel() {
       </div>
 
       {([
-        ["arabic", "🔗 আরবি লিংক", arabic],
-        ["bangla", "🔗 বাংলা লিংক", bangla],
-        ["symbol", "🔗 প্রতীক লিংক", symbol],
-      ] as const).map(([k, label, on]) => (
-        <label key={k} className="flex items-center justify-between gap-2 rounded bg-neutral-900/40 px-2 py-1.5 cursor-pointer">
-          <span className="text-[11px] text-neutral-300">{label}</span>
-          <Switch checked={on} onCheckedChange={(v) => setLink(k, v)} />
-        </label>
-      ))}
+        ["arabic", "আরবি লিংক", arabic],
+        ["bangla", "বাংলা লিংক", bangla],
+        ["symbol", "প্রতীক লিংক", symbol],
+      ] as const).map(([k, label, on]) => {
+        const scopeMeta = SCOPE_META[useEditorStore.getState().scope];
+        return (
+          <label
+            key={k}
+            className="flex items-center justify-between gap-2 rounded px-2 py-1.5 cursor-pointer transition-all"
+            style={
+              on
+                ? { background: `${scopeMeta.color}10`, boxShadow: `inset 0 0 0 1px ${scopeMeta.color}55` }
+                : { background: "rgba(23,23,23,0.6)" }
+            }
+          >
+            <span className="flex items-center gap-1.5 text-[11px] text-neutral-300">
+              <span style={{ opacity: on ? 1 : 0.4 }}>{on ? "🔗" : "⛓️‍💥"}</span>
+              {label}
+              {on && (
+                <span
+                  className="ml-1 rounded px-1.5 py-0.5 text-[9px] font-bold"
+                  style={{ background: `${scopeMeta.color}22`, color: scopeMeta.color }}
+                >
+                  {scopeMeta.labelBn}
+                </span>
+              )}
+            </span>
+            <Switch checked={on} onCheckedChange={(v) => setLink(k, v)} />
+          </label>
+        );
+      })}
+
     </div>
   );
 }
