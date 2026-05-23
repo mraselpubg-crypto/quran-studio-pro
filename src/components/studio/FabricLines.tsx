@@ -521,15 +521,15 @@ function InlineTextEditor({
   }, []);
 
   const getReflowBase = () => {
-    const dist = useReflowStore.getState().distribution;
-    const srcDist = dist.find((d) => d.pageId === pageId);
-    const srcSurah = srcDist?.surah ?? 0;
-    const surahPageIds =
-      srcSurah > 0
-        ? dist.filter((d) => d.surah === srcSurah).map((d) => d.pageId)
-        : undefined;
+    const editorScope = useEditorStore.getState().scope;
+    const isReflowLayer = layer === "arabic" || layer === "bangla";
+    const eff = isReflowLayer
+      ? effectiveReflowScope(editorScope, layer as "arabic" | "bangla", pageId)
+      : { cascade: true, pageIds: [pageId], layer: "arabic" as const };
     return {
       layer,
+      cascade: eff.cascade,
+      scopedPageIds: eff.pageIds,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       allPages: useReflowStore.getState().pages as unknown as Array<{ id: string; lines: any[] }>,
       localMap: useOverridesStore.getState().local,
@@ -538,9 +538,10 @@ function InlineTextEditor({
       fontFamily,
       fontSize,
       availableWidth,
-      surahPageIds,
+      surahPageIds: eff.pageIds,
     };
   };
+
 
 
   const commit = (text?: string) => {
