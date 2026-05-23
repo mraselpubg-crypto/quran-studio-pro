@@ -4,7 +4,7 @@ import {
   Link2, RotateCcw, ScanLine, Type, Move
 } from "lucide-react";
 import { useEditorStore, type SelectionScope } from "@/state/editorStore";
-import { useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped } from "@/state/overridesStore";
+import { useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped, effectiveScope } from "@/state/overridesStore";
 import { useHistoryStore, relativeTime } from "@/state/historyStore";
 import { useReflowStore } from "@/state/reflowStore";
 import { useLinkingStore } from "@/state/linkingStore";
