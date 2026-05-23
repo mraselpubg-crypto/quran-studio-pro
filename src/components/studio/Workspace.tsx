@@ -411,6 +411,7 @@ export function Workspace() {
           </div>
         </div>
         <Toaster position="bottom-center" theme="dark" richColors />
+        <CrossPageReflowDialog />
       </>
     );
   }
