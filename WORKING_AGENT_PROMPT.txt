@@ -7,7 +7,7 @@ Branch: main
 1. AGENT_README.md
 2. CONTINUE_PROMPT.txt          ← CURRENT PLAN here
 3. PLAN_COMPLETION_PROTOCOL.md  ← Plan শেষে কী আপডেট করবে
-4. PLAN17_DESIGN.md (if Plan 17)
+4. PLAN18_DESIGN.md (if Plan 18)
 
 ## START
 git pull origin main
@@ -16,7 +16,7 @@ npm run dev
 
 ## CURRENT JOB
 See CONTINUE_PROMPT.txt → "CURRENT PLAN" section.
-(Now: Plan 17 — Active Page Context)
+(Now: Plan 18 — Context page unify + verify-active-page)
 
 ## WHEN YOU FINISH A PLAN (mandatory)
 1. tsc + build + verify scripts

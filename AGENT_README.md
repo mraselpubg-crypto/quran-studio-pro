@@ -50,7 +50,8 @@
 | **0** | **AGENT_README.md** | এই ফাইল — এন্ট্রি পয়েন্ট |
 | 1 | **WORKING_AGENT_PROMPT.txt** | Copy-paste শুরু |
 | 2 | **CONTINUE_PROMPT.txt** | মাস্টার: Plan, tasks, rules, git |
-| 3 | **PLAN17_DESIGN.md** | Plan 17 architecture |
+| 3 | **PLAN18_DESIGN.md** | Plan 18 architecture (current) |
+| — | **PLAN17_DESIGN.md** | Plan 17 (done) |
 | — | **PLAN_COMPLETION_PROTOCOL.md** | Plan done → ফাইল আপডেট নিয়ম |
 | — | **PLAN16_AGENT_PROMPT.txt** | Plan 16 reflow (done — verify/re-implement) |
 | 4 | AGENT_PROMPT.md | Legacy v2 — উপেক্ষা |
@@ -74,7 +75,7 @@ npm run build
 node scripts/verify-editor.mjs
 node scripts/verify-reflow.mjs
 git add -A
-git commit -m "feat(Plan17): active page context for scoped reset and navigation"
+git commit -m "feat(Plan18): unify context page id and add active-page verify script"
 git push origin main
 ```
 
@@ -108,13 +109,13 @@ git pull origin main
   AGENT_README.md
   WORKING_AGENT_PROMPT.txt
   CONTINUE_PROMPT.txt
-  PLAN17_DESIGN.md
+  PLAN18_DESIGN.md
 
-বর্তমান কাজ: Plan 17 (CONTINUE_PROMPT.txt)। Plan 16 done — পুনরায় করো না।
+বর্তমান কাজ: Plan 18 (CONTINUE_PROMPT.txt)। Plan 17 done — পুনরায় করো না।
 
-শেষে: tsc, build, verify-editor.mjs, verify-reflow.mjs
+শেষে: tsc, build, verify-editor.mjs, verify-reflow.mjs, verify-active-page.mjs (after Plan 18)
 git commit + git push origin main
-CONTINUE_PROMPT.txt আপডেট (Plan 17 ✅) → আবার push
+CONTINUE_PROMPT.txt আপডেট (Plan 18 ✅) → আবার push
 
 GitHub Extension / Credential Manager দিয়ে push করো — token ফাইলে/চ্যাটে নয়।
 ```

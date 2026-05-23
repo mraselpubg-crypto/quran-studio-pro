@@ -1,0 +1,17 @@
+Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+Branch: main
+
+git pull origin main
+Read: AGENT_README.md → CONTINUE_PROMPT.txt → PLAN18_DESIGN.md
+
+Implement Plan 18:
+- getContextPageId() in reflowScope / typographyReflow fallbacks
+- scripts/verify-active-page.mjs
+
+Then PLAN_COMPLETION_PROTOCOL.md:
+- tsc, build, verify scripts
+- git commit -m "feat(Plan18): unify context page id and add active-page verify script"
+- Update CONTINUE_PROMPT (Plan 18 ✅, Plan 19 stub)
+- docs commit + push
+
+Plan 17 is DONE — do not re-implement activePageId.

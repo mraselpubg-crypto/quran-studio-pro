@@ -68,7 +68,8 @@ Order: **live → check → code → verify → commit → handoff files → com
 | **AGENT_README.md** | Entry point — GitHub Extension + copy-paste prompt |
 | **WORKING_AGENT_PROMPT.txt** | Short agent entry |
 | **CONTINUE_PROMPT.txt** | Master status, plans, rules (THIS FILE) |
-| **PLAN17_DESIGN.md** | Plan 17 design doc |
+| **PLAN17_DESIGN.md** | Plan 17 design (done) |
+| **PLAN18_DESIGN.md** | Plan 18 design doc |
 | **PLAN_COMPLETION_PROTOCOL.md** | Plan শেষে ফাইল আপডেটের নিয়ম |
 | **AGENT_PROMPT.md** | Legacy v2 — ignore |
 
@@ -114,59 +115,43 @@ Order: **live → check → code → verify → commit → handoff files → com
 - Inline editor: scope + link-off toast / clip
 - `scripts/verify-reflow.mjs`
 
+### Plan 17 ✅ — Active Page Context (local implement 2026-05-23)
+- `editorStore`: `activePageId`, `setActivePageId`; `navigateTo` sets active page + row flash ~1.2s
+- `Workspace`: store-driven visible page; legacy `navigateToPageId` cleared without killing flash
+- `ResetGroup`: `getContextPageId()` — selection → active page → first page
+- `HistoryTab`: click entry → navigate; restore uses `stopPropagation`
+- `src/lib/editorContext.ts` — `getContextPageId()`
+- verify: tsc, build, verify-editor.mjs, verify-reflow.mjs
+
 ---
 
-## 🎯 CURRENT PLAN — Plan 17: Active Page Context (IMPLEMENT NEXT)
+## 🎯 CURRENT PLAN — Plan 18: Context Page Unification + verify-active-page (IMPLEMENT NEXT)
 
 ### Problem
-- Visible page lives only in `Workspace` local `useState(activeId)`
-- `ResetGroup` falls back to `pages[0]` when no selection
-- History navigate: `Workspace` effect clears `focusedRowKey` too early (row flash broken)
-- `HistoryTab` in PropertiesPanel has no click-to-navigate (only restore)
+- `getContextPageId()` exists but `reflowScope` / `typographyReflow` may still use ad-hoc `pages[0]` fallbacks
+- No automated test for “page 2 visible, no selection → page-scope reset hits page 2 only”
 
 ### Tasks
 
-**1. editorStore.ts**
-- Add `activePageId: string | null`
-- Add `setActivePageId(id: string | null)`
-- `navigateTo(pageId, rowKey?)` → `setActivePageId(pageId)` + set `focusedRowKey` + auto-clear flash after 1200ms
-- Do NOT clear `focusedRowKey` when consuming `navigateToPageId` in Workspace
+**1. Unify fallbacks**
+- Replace scattered `pages[0]?.id` / selection-only page picks with `getContextPageId()` where scope = page and no explicit pageId
 
-**2. Workspace.tsx**
-- Replace local `activeId` state with `activePageId` from editorStore (or sync both ways once)
-- `goToPrev` / `goToNext` / PageList `onSelect` → `setActivePageId`
-- `navigateToPageId` effect: only `setActivePageId` + clear `navigateToPageId` — **remove `clearFocusedRow()` there**
-- Keep invalid-page fallback after reflow rebuild
+**2. Playwright**
+- Add `scripts/verify-active-page.mjs`:
+  - Open page 2 (no layer selection)
+  - Page-scope reset → only page 2 overrides cleared (smoke assertion)
 
-**3. PropertiesPanel — ResetGroup**
-```ts
-pageId: selection?.pageId ?? activePageId ?? pages[0]?.id
-```
-
-**4. PropertiesPanel — HistoryTab**
-- Click entry (not restore btn) → `navigateTo(entry.pageId, entry.layerKey ?? row key)`
-- Restore button: `stopPropagation`
-
-**5. Optional:** `src/lib/editorContext.ts`
-- `getContextPageId()` = selection?.pageId ?? activePageId ?? pages[0]?.id
+**3. Docs (optional)**
+- Note dual-repo / Lovable sync in AGENT_README if team uses two remotes
 
 ### Verification
-- Open page 2, no selection → page-scope Reset clears only page 2 overrides
-- History entry click → jumps to page + row flash ~1.2s
-- `npx tsc --noEmit` + `npm run build` + `verify-editor.mjs`
+- `npx tsc --noEmit` + `npm run build`
+- `node scripts/verify-active-page.mjs` (+ existing verify-editor / verify-reflow)
 
 ### Commit message
 ```
-feat(Plan17): active page context for scoped reset and navigation
+feat(Plan18): unify context page id and add active-page verify script
 ```
-
----
-
-## 📝 PLAN 18 (stub — after Plan 17)
-
-- Unify `getContextPageId()` in reflowScope / typographyReflow fallbacks
-- Playwright: `scripts/verify-active-page.mjs` (reset on page 2 without selection)
-- Lovable/sync: document dual-repo workflow if needed
 
 ---
 
@@ -205,7 +190,7 @@ npm run build
 node scripts/verify-editor.mjs
 node scripts/verify-reflow.mjs
 git add -A
-git commit -m "feat(Plan17): active page context for scoped reset and navigation"
+git commit -m "feat(Plan18): unify context page id and add active-page verify script"
 git push origin main
 ```
 
