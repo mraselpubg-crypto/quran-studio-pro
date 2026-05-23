@@ -1,0 +1,96 @@
+## ===== PLAN 16 — Linked Area-Text Auto Reflow (AGENT PROMPT) =====
+## Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+## Branch: main
+## Status on main: IMPLEMENTED (verify if your clone is behind)
+
+---
+
+## COPY-PASTE TO AGENT
+
+```
+You are Working Agent for Quran Studio Pro — Plan 16.
+
+Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+Branch: main
+
+git pull origin main
+npm install
+npm run dev
+
+Read: AGENT_README.md → PLAN16_AGENT_PROMPT.txt → src/lib/reflowScope.ts
+
+Plan 16 = InDesign-style Area Text: typography + typing overflow reflows
+across rows/pages when Paragraph Linking is ON and scope allows.
+
+If already implemented, VERIFY only (tsc, build, verify-reflow.mjs).
+If missing, implement per checklist below, then push.
+
+git push origin main
+Update CONTINUE_PROMPT.txt when done.
+```
+
+---
+
+## GOAL
+
+When Arabic/Bangla font size (or leading, tracking, hScale) changes, or text
+overflows a row, linked layers reflow (word-wrap cascade) per:
+- Linking switch (arabic / bangla) ON or OFF
+- Editor scope: general | page | surah | global
+
+Link OFF → overflow clips on current row + toast (no spill to next row).
+
+---
+
+## FILES (Plan 16)
+
+| File | What |
+|------|------|
+| src/lib/reflowScope.ts | effectiveReflowScope(scope, layer, pageId) |
+| src/lib/textReflow.ts | reflowLayerText(), planCascade integration |
+| src/lib/canvasMeasure.ts | splitToFitForLayer() — Arabic word-aware |
+| src/lib/typographyReflow.ts | patchTypographyScoped() |
+| src/hooks/useTypographyPatch.ts | guard + CharacterPanel/DSlider hook |
+| src/components/studio/FabricLines.tsx | InlineTextEditor scope + link-off toast |
+| src/components/studio/PropertiesPanel.tsx | LinkingPanel "এরিয়া টেক্সট লিংক", typography path |
+| scripts/verify-reflow.mjs | Playwright smoke |
+
+---
+
+## IMPLEMENTATION CHECKLIST
+
+- [ ] effectiveReflowScope: link OFF → cascade false
+- [ ] reflowLayerText: clip + toast when link OFF + overflow
+- [ ] patchTypographyScoped after fontPx/leading/tracking/hScale patch
+- [ ] CharacterPanel + DSlider (local fontPx) → useTypographyPatch
+- [ ] Inline typing uses same scope as Enter key (not always full surah)
+- [ ] CrossPageReflowDialog for cross-page typography reflow
+- [ ] npx tsc --noEmit && npm run build
+- [ ] node scripts/verify-editor.mjs && node scripts/verify-reflow.mjs
+
+---
+
+## INVARIANTS
+
+1. Never patchScoped fan-out on `text` field
+2. reflowLayerText never calls reflowStore.rebuild()
+3. Symbol layer: no text reflow
+4. No browser confirm() — AlertDialog only
+5. React hooks before early returns
+
+---
+
+## COMMIT (if you implement)
+
+feat(Plan16): linked area-text auto reflow on typography and scope
+
+---
+
+## VERIFY MANUAL
+
+1. Type tool → select Arabic row → Link ON → scope Page
+2. Increase Font Size → overflow moves to next row on same page
+3. Link OFF → increase font → toast "লিংক বন্ধ…", next row unchanged
+4. Enter with text after cursor → scope respected + dialog if cross-page
+
+===== END PLAN 16 PROMPT =====

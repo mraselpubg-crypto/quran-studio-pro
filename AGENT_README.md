@@ -50,6 +50,7 @@
 | 1 | **WORKING_AGENT_PROMPT.txt** | Copy-paste শুরু |
 | 2 | **CONTINUE_PROMPT.txt** | মাস্টার: Plan, tasks, rules, git |
 | 3 | **PLAN17_DESIGN.md** | Plan 17 architecture |
+| — | **PLAN16_AGENT_PROMPT.txt** | Plan 16 reflow (done — verify/re-implement) |
 | 4 | AGENT_PROMPT.md | Legacy v2 — উপেক্ষা |
 
 ---
