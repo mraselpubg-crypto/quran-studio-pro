@@ -1,56 +1,191 @@
-## ===== WORKING AGENT HANDOFF — QURAN STUDIO PRO =====
-## Date: 2026-05-23
+## ===== MASTER AGENT HANDOFF — QURAN STUDIO PRO =====
+## Single source of truth — read this first, update this when done, push to GitHub
+## Last updated: 2026-05-23
 
 ---
 
-## 🔗 REPO
+## 🔗 REPOSITORY (ONLY OFFICIAL REMOTE)
 
-Remote: https://github.com/mraselpubg-crypto/quran-studio-pro.git
-Branch: main
-Local: c:\xampp\htdocs\q01\quran-studio-pro
-Dev: http://localhost:8080
+| Item | Value |
+|------|--------|
+| **GitHub** | https://github.com/mraselpubg-crypto/quran-studio-pro.git |
+| **Branch** | `main` |
+| **Local (Windows)** | `c:\xampp\htdocs\q01\quran-studio-pro` |
+| **Dev server** | http://localhost:8080 |
+| **Start dev** | `npm run dev` |
 
-Workflow: git pull → npm install → npm run dev → check → implement → tsc → build → verify → commit → push
+**Security:** Never paste GitHub PAT/tokens in chat or commit them. Use local `git credential` for push.
 
 ---
 
-## ✅ Plan 16 — Linked Area-Text Auto Reflow (COMPLETE)
+## 📋 MANDATORY WORKFLOW (every session)
 
+```
+1. git pull origin main
+2. npm install          (if node_modules missing)
+3. npm run dev          (port 8080; kill old process if "already in use")
+4. Read this file + WORKING_AGENT_PROMPT.txt
+5. Fix bugs if any → implement CURRENT PLAN below
+6. npx tsc --noEmit     (must exit 0)
+7. npm run build        (must exit 0)
+8. node scripts/verify-editor.mjs
+9. node scripts/verify-reflow.mjs   (after Plan 16+)
+10. git add -A
+11. git commit -m "feat(PlanXX): …" or "fix(…): …"
+12. git push origin main
+13. Update THIS FILE (mark plan ✅, write NEXT plan) → commit + push again
+```
+
+Order when implementing features: **live → check → code → verify → commit → push**
+
+---
+
+## 📁 HANDOFF FILES IN THIS REPO (read order)
+
+| File | Purpose |
+|------|---------|
+| **CONTINUE_PROMPT.txt** | Master status, plans, architecture, rules (THIS FILE) |
+| **WORKING_AGENT_PROMPT.txt** | Short copy-paste entry for agents |
+| **AGENT_PROMPT.md** | Legacy v2 tasks — ignore unless fixing old items; prefer CONTINUE_PROMPT |
+| **CODEBASE_OVERVIEW.md** | Architecture deep-dive (if present) |
+
+---
+
+## 🏗️ STACK & KEY PATHS
+
+**Stack:** TanStack Start + React + Zustand + Fabric/HTML rows + Vite
+
+| Area | Path |
+|------|------|
+| Canvas rows / Type tool / reflow UI | `src/components/studio/FabricLines.tsx` |
+| Properties + Linking + History | `src/components/studio/PropertiesPanel.tsx` |
+| Workspace / active page UI | `src/components/studio/Workspace.tsx` |
+| Overrides + patchScoped + resetScoped | `src/state/overridesStore.ts` |
+| Editor scope, selection, navigateTo | `src/state/editorStore.ts` |
+| Page list / distribution | `src/state/reflowStore.ts` |
+| Paragraph linking toggles | `src/state/linkingStore.ts` |
+| History labels | `src/state/historyStore.ts` |
+| Reflow engine | `src/lib/textReflow.ts` |
+| Reflow scope (link + editor scope) | `src/lib/reflowScope.ts` |
+| Typography → reflow | `src/lib/typographyReflow.ts` |
+| Typography hook + guard | `src/hooks/useTypographyPatch.ts` |
+| Playwright smoke | `scripts/verify-editor.mjs`, `scripts/verify-reflow.mjs` |
+
+**Artboard text width for reflow:** `780 - 16` px (`ARTBOARD_TEXT_WIDTH` in typographyReflow.ts)
+
+---
+
+## ✅ COMPLETED PLANS
+
+### Plan 14 ✅ — Scope reset, linking gate, history labels
+- `resetScoped()`, CharacterPanel linking, SubLayerPanel `effectiveScope`
+- History `labelBn` suffix: (পেজ), (সূরা), (সকল)
+
+### Plan 16 ✅ — Linked Area-Text Auto Reflow (commit ~6256a1f)
 - `effectiveReflowScope()` — `src/lib/reflowScope.ts`
 - `reflowLayerText()` — `src/lib/textReflow.ts`
 - `splitToFitForLayer()` — Arabic word-aware — `src/lib/canvasMeasure.ts`
-- `patchTypographyScoped()` + guard — `src/lib/typographyReflow.ts`, `src/hooks/useTypographyPatch.ts`
-- CharacterPanel + DSlider → typography reflow path
-- LinkingPanel → "এরিয়া টেক্সট লিংক" copy
-- Inline editor scope + link-off toast — `FabricLines.tsx`
-- `scripts/verify-reflow.mjs` E2E smoke
+- `patchTypographyScoped()` + `useTypographyPatch` + large-change guard
+- CharacterPanel + DSlider → typography fields trigger reflow
+- LinkingPanel → "এরিয়া টেক্সট লিংক"
+- Inline editor: scope + link-off toast / clip
+- `scripts/verify-reflow.mjs`
 
-Verify:
-```powershell
-npx tsc --noEmit
-npm run build
-node scripts/verify-editor.mjs
-node scripts/verify-reflow.mjs
+---
+
+## 🎯 CURRENT PLAN — Plan 17: Active Page Context (IMPLEMENT NEXT)
+
+### Problem
+- Visible page lives only in `Workspace` local `useState(activeId)`
+- `ResetGroup` falls back to `pages[0]` when no selection
+- History navigate: `Workspace` effect clears `focusedRowKey` too early (row flash broken)
+- `HistoryTab` in PropertiesPanel has no click-to-navigate (only restore)
+
+### Tasks
+
+**1. editorStore.ts**
+- Add `activePageId: string | null`
+- Add `setActivePageId(id: string | null)`
+- `navigateTo(pageId, rowKey?)` → `setActivePageId(pageId)` + set `focusedRowKey` + auto-clear flash after 1200ms
+- Do NOT clear `focusedRowKey` when consuming `navigateToPageId` in Workspace
+
+**2. Workspace.tsx**
+- Replace local `activeId` state with `activePageId` from editorStore (or sync both ways once)
+- `goToPrev` / `goToNext` / PageList `onSelect` → `setActivePageId`
+- `navigateToPageId` effect: only `setActivePageId` + clear `navigateToPageId` — **remove `clearFocusedRow()` there**
+- Keep invalid-page fallback after reflow rebuild
+
+**3. PropertiesPanel — ResetGroup**
+```ts
+pageId: selection?.pageId ?? activePageId ?? pages[0]?.id
+```
+
+**4. PropertiesPanel — HistoryTab**
+- Click entry (not restore btn) → `navigateTo(entry.pageId, entry.layerKey ?? row key)`
+- Restore button: `stopPropagation`
+
+**5. Optional:** `src/lib/editorContext.ts`
+- `getContextPageId()` = selection?.pageId ?? activePageId ?? pages[0]?.id
+
+### Verification
+- Open page 2, no selection → page-scope Reset clears only page 2 overrides
+- History entry click → jumps to page + row flash ~1.2s
+- `npx tsc --noEmit` + `npm run build` + `verify-editor.mjs`
+
+### Commit message
+```
+feat(Plan17): active page context for scoped reset and navigation
 ```
 
 ---
 
-## 📝 Plan 17 — Active Page Context (NEXT)
+## 📝 PLAN 18 (stub — after Plan 17)
 
-1. `editorStore.activePageId` + Workspace sync
-2. Reset page/surah uses active page (not `pages[0]`)
-3. History click → navigate + row flash
-
-Commit: `feat(Plan17): active page context for scoped reset and navigation`
+- Unify `getContextPageId()` in reflowScope / typographyReflow fallbacks
+- Playwright: `scripts/verify-active-page.mjs` (reset on page 2 without selection)
+- Lovable/sync: document dual-repo workflow if needed
 
 ---
 
-## 🔑 RULES
+## ⚠️ KNOWN ISSUES / WATCH
 
-1. `text` never patchScoped fan-out
-2. reflowLayerText never calls rebuild()
-3. Hooks before early returns
-4. No confirm() — AlertDialog / CrossPageReflowDialog
-5. Symbol layer: no text reflow
+1. **verify-reflow** `link-off-toast` case flaky in Playwright (Sonner portal) — optional in CI
+2. **Global font slider** (`setGlobal`) does not run typography reflow — by design (row-local only)
+3. **routeTree.gen.ts** — auto-generated; do not commit unless intentionally changed
+4. **Port 8080** — if `EADDRINUSE`, stop other Vite or use different port
 
-===== END =====
+---
+
+## 🔑 INVARIANTS (never break)
+
+| # | Rule |
+|---|------|
+| 1 | `text` field never `patchScoped` fan-out — per-row `reflowLayerText` only |
+| 2 | `reflowLayerText()` never calls `reflowStore.rebuild()` |
+| 3 | All React hooks before any early `return` |
+| 4 | No `confirm()` — use `AlertDialog` / `CrossPageReflowDialog` |
+| 5 | Symbol layer: no text reflow |
+| 6 | Use `effectiveScope()` for property fan-out when linking ON |
+| 7 | Use `effectiveReflowScope()` for text cascade boundaries |
+
+---
+
+## 🔧 QUICK COMMANDS (PowerShell)
+
+```powershell
+cd c:\xampp\htdocs\q01\quran-studio-pro
+git pull origin main
+npm install
+npm run dev
+npx tsc --noEmit
+npm run build
+node scripts/verify-editor.mjs
+node scripts/verify-reflow.mjs
+git add -A
+git commit -m "feat(Plan17): active page context for scoped reset and navigation"
+git push origin main
+```
+
+---
+
+===== END MASTER HANDOFF — update after each plan =====

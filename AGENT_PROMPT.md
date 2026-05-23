@@ -1,10 +1,24 @@
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║        Studio Al-Qalam — AI Agent Handoff Prompt (v2.0)                    ║
-║        For: Lovable / Cursor / Windsurf / Any Vibe Coding Agent            ║
+║        ⚠️  SUPERSEDED — use CONTINUE_PROMPT.txt instead (2026-05-23)       ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
+## ⛔ STOP — Read these first (current project)
+
+| File | Role |
+|------|------|
+| **CONTINUE_PROMPT.txt** | Master handoff: plans, workflow, push commands |
+| **WORKING_AGENT_PROMPT.txt** | Short agent entry |
+| **PLAN17_DESIGN.md** | Plan 17 architecture only |
+
+**GitHub:** https://github.com/mraselpubg-crypto/quran-studio-pro.git  
+**Branch:** main  
+**Dev:** http://localhost:8080 (`npm run dev`)
+
+The tasks below are **legacy** (old fork). Only use if explicitly asked.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT TO TELL THE NEW AGENT (paste this in full):
+LEGACY v2.0 CONTENT (archived):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 You are working on "Studio Al-Qalam" — a professional Quranic Desktop 
@@ -12,7 +26,7 @@ Publishing (DTP) editor. The full codebase is in this repository.
 Read CODEBASE_OVERVIEW.md first — it has the complete architecture, 
 state system, data flow, and known bugs.
 
-GITHUB: https://github.com/ohidgazi00003-gif/QuranMakerV3
+GITHUB (OLD): https://github.com/ohidgazi00003-gif/QuranMakerV3
 APP: http://localhost:8080/ (run `npm run dev` to start)
 STACK: TanStack Start + React 19 + Zustand + Tailwind CSS v4
 
