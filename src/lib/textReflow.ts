@@ -11,7 +11,8 @@
 
 import type { FabricLine } from "@/components/studio/FabricLines";
 import type { LocalOverride } from "@/state/overridesStore";
-import { measureTextWidthCanvas, splitToFitCanvas } from "./canvasMeasure";
+import { measureTextWidthCanvas, splitToFitCanvas, splitToFitForLayer } from "./canvasMeasure";
+
 
 export type LayerKind = "arabic" | "bangla";
 
