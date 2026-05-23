@@ -11,6 +11,7 @@ import { ResizeDivider } from "./ResizeDivider";
 import { TopBar } from "./TopBar";
 import { SelectionPanel } from "./SelectionPanel";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { useOverridesStore } from "@/state/overridesStore";
 import { useEditorStore } from "@/state/editorStore";
 import { useReflowStore } from "@/state/reflowStore";
@@ -186,6 +187,21 @@ export function Workspace() {
       // ← / → page navigation (when no row is selected)
       if (!sel && e.key === "ArrowLeft") { e.preventDefault(); goToPrev(); return; }
       if (!sel && e.key === "ArrowRight") { e.preventDefault(); goToNext(); return; }
+
+      // Alt+1/2/3/4 → switch editing scope
+      if (e.altKey && !e.ctrlKey && !e.metaKey && ["1","2","3","4"].includes(e.key)) {
+        e.preventDefault();
+        const map = {
+          "1": { scope: "general" as const, label: "সাধারণ" },
+          "2": { scope: "page"    as const, label: "পেজ" },
+          "3": { scope: "surah"   as const, label: "সূরা" },
+          "4": { scope: "global"  as const, label: "সকল" },
+        };
+        const pick = map[e.key as "1"|"2"|"3"|"4"];
+        useEditorStore.getState().setScope(pick.scope);
+        toast.success(`এডিটিং মোড পরিবর্তন: ${pick.label}`);
+        return;
+      }
 
       switch (e.key.toLowerCase()) {
         case "escape":
