@@ -46,6 +46,16 @@ export function PropertiesPanel() {
         <WordPanel selKey={selection.key} pageId={selection.pageId} rowIndex={selection.rowIndex} wordIndex={selection.wordIndex ?? 0} scope={scope} />
       )}
 
+      {/* ── Sub-Layer Movement Panel (per-row Symbol/Arabic/Bangla dy) ── */}
+      {selection && (selection.kind === "row" || selection.kind === "layer") && (
+        <SubLayerPanel pageId={selection.pageId} rowIndex={selection.rowIndex} scope={scope} />
+      )}
+
+      {/* ── Linking Panel ── */}
+      {selection && (selection.kind === "row" || selection.kind === "layer") && (
+        <LinkingPanel />
+      )}
+
       {/* ── Character & Paragraph Panel (Type Tool only) ── */}
       {isTypeTool && isLayerSel && selection && (
         <CharacterPanel selKey={selection.key} />
