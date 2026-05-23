@@ -376,12 +376,20 @@ function LocalFields({ color }: { color: string }) {
   const scope = useEditorStore((s) => s.scope);
   const local = useOverridesStore((s) => selection ? s.local[selection.key] : undefined);
   if (!selection) return <div className="text-[10px] text-neutral-600 rounded bg-neutral-900/50 p-2 text-center">ট্রান্সফর্ম করার জন্য সারি নির্বাচন করুন</div>;
+  const link = useLinkingStore();
+  const layerKind = selection.layerKind ?? null;
+  const willFanOut =
+    scope !== "general" &&
+    (layerKind ? link[layerKind] : link.arabic && link.bangla && link.symbol);
   const apply = (patch: Record<string, unknown>) => {
     void (async () => {
-      const eff = await effectiveScope(scope, selection.layerKind ?? null);
+      const eff = layerKind
+        ? await effectiveScope(scope, layerKind)
+        : await effectiveScopeForRow(scope);
       void patchScoped(selection.key, patch as never, eff);
     })();
   };
+
   return (
     <div className="grid grid-cols-2 gap-3">
       {(["dx", "dy"] as const).map((f) => (
