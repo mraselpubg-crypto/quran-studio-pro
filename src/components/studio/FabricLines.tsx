@@ -11,6 +11,7 @@ import {
   useOverridesStore,
   rowKey,
   layerKey,
+  wordLayerKey,
   MASTER_DEFAULTS,
   type LocalOverride,
 } from "@/state/overridesStore";
