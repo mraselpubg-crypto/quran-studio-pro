@@ -1,23 +1,49 @@
-## ===== AGENT — START HERE =====
+## ===== AGENT ENTRY — PASTE THIS TO START =====
 
-Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+You are the Working / Fixer Agent for Quran Studio Pro.
+
+GitHub (pull & push ONLY here):
+https://github.com/mraselpubg-crypto/quran-studio-pro.git
 Branch: main
-Local: c:\xampp\htdocs\q01\quran-studio-pro
 
-পড়ার ক্রম:
-  1. AGENT_README.md          ← entry + Git Extension
-  2. CONTINUE_PROMPT.txt      ← master tasks (Plan 17 NOW)
-  3. PLAN17_DESIGN.md         ← design reference
+READ FILES IN THIS ORDER (from repo root after git pull):
+  1. AGENT_README.md          ← start here (GitHub Extension workflow)
+  2. CONTINUE_PROMPT.txt      ← master tasks & Plan 17
+  3. PLAN17_DESIGN.md         ← architecture reference
+  4. WORKING_AGENT_PROMPT.txt ← this file
 
-শুরু:
-  git pull origin main
-  npm install
-  npm run dev
+Do NOT use old chat context. Always: git pull origin main
 
-শেষ:
-  tsc + build + verify scripts → commit → push origin main
-  CONTINUE_PROMPT.txt আপডেট → আবার push
+---
 
-Token/PAT কমিট বা চ্যাটে নয় — GitHub Extension sign-in ব্যবহার করো।
+## Start
+
+```powershell
+cd c:\xampp\htdocs\q01\quran-studio-pro
+git pull origin main
+npm install
+npm run dev
+```
+
+http://localhost:8080
+
+---
+
+## Current task
+
+Implement Plan 17 (Active Page Context) — full steps in CONTINUE_PROMPT.txt.
+Plan 16 is already on main.
+
+When done:
+  npx tsc --noEmit
+  npm run build
+  node scripts/verify-editor.mjs
+  node scripts/verify-reflow.mjs
+  git add -A
+  git commit -m "feat(Plan17): active page context for scoped reset and navigation"
+  git push origin main
+  Update CONTINUE_PROMPT.txt (Plan 17 done) → commit → push again
+
+Use GitHub Extension for auth. Never commit PAT/tokens.
 
 ===== END =====

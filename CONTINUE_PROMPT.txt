@@ -14,10 +14,7 @@
 | **Dev server** | http://localhost:8080 |
 | **Start dev** | `npm run dev` |
 
-**Git auth:** Cursor/VS Code **GitHub Extension** sign-in, or Windows Credential Manager.  
-**Security:** Never put PAT/tokens in repo files, commit messages, or chat. Remote URL = HTTPS only (no token in URL).
-
-**Agent entry file:** `AGENT_README.md` (read first)
+**Security:** Never paste GitHub PAT/tokens in chat or commit them. Use local `git credential` for push.
 
 ---
 
@@ -47,12 +44,11 @@ Order when implementing features: **live → check → code → verify → commi
 
 | File | Purpose |
 |------|---------|
-| **AGENT_README.md** | Single entry: repo URL, git extension, file index, one-block prompt |
-| **CONTINUE_PROMPT.txt** | Master status, plans, architecture, rules (THIS FILE) |
-| **WORKING_AGENT_PROMPT.txt** | Short copy-paste entry for agents |
-| **PLAN17_DESIGN.md** | Plan 17 architecture (no code) |
-| **AGENT_PROMPT.md** | Legacy v2 — ignore; use CONTINUE_PROMPT |
-| **CODEBASE_OVERVIEW.md** | Architecture deep-dive (if present) |
+| **AGENT_README.md** | Entry point — GitHub Extension + copy-paste prompt |
+| **WORKING_AGENT_PROMPT.txt** | Short agent entry |
+| **CONTINUE_PROMPT.txt** | Master status, plans, rules (THIS FILE) |
+| **PLAN17_DESIGN.md** | Plan 17 design doc |
+| **AGENT_PROMPT.md** | Legacy v2 — ignore |
 
 ---
 

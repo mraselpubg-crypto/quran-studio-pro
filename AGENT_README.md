@@ -19,20 +19,26 @@
 ## Git / GitHub Extension (Cursor / VS Code)
 
 1. **Clone** (প্রথমবার):  
-   `Git: Clone` → URL: `https://github.com/mraselpubg-crypto/quran-studio-pro.git`  
-   অথবা: `git clone https://github.com/mraselpubg-crypto/quran-studio-pro.git`
-
-2. **Sign in:** GitHub Extension দিয়ে লগইন করো (PAT চ্যাটে বা ফাইলে লিখবে না)।
-
-3. **প্রতি সেশন:** Source Control → **Pull** (`git pull origin main`)
-
-4. **কাজ শেষে:** Source Control → stage → commit message → **Push** (`git push origin main`)
-
-5. **Remote URL** শুধু HTTPS, token ছাড়া:  
+   Command Palette → `Git: Clone` →  
    `https://github.com/mraselpubg-crypto/quran-studio-pro.git`
 
-⚠️ **কখনো PAT/token** `CONTINUE_PROMPT.txt`, কোড, বা commit-এ রাখবে না।  
-চ্যাটে token পাঠালে GitHub-এ **তৎক্ষণাৎ Revoke** করো।
+2. **Sign in:** GitHub Extension দিয়ে লগইন (Settings → Accounts → GitHub)।  
+   **PAT চ্যাটে, কোডে, বা handoff ফাইলে লিখবে না।**
+
+3. **প্রতি সেশন শুরু:** Source Control → **Pull**  
+   ```powershell
+   git pull origin main
+   ```
+
+4. **কাজ শেষে:** stage → commit → **Push**  
+   ```powershell
+   git push origin main
+   ```
+
+5. **Remote URL** (token ছাড়া):  
+   `https://github.com/mraselpubg-crypto/quran-studio-pro.git`
+
+⚠️ Token চ্যাটে ফাঁস হলে GitHub → Settings → Developer settings → **Revoke** করো।
 
 ---
 
@@ -40,11 +46,11 @@
 
 | ক্রম | ফাইল | বিবরণ |
 |------|------|--------|
-| 0 | **AGENT_README.md** | এই ফাইল — এন্ট্রি পয়েন্ট |
-| 1 | **WORKING_AGENT_PROMPT.txt** | দ্রুত শুরু / copy-paste |
+| **0** | **AGENT_README.md** | এই ফাইল — এন্ট্রি পয়েন্ট |
+| 1 | **WORKING_AGENT_PROMPT.txt** | Copy-paste শুরু |
 | 2 | **CONTINUE_PROMPT.txt** | মাস্টার: Plan, tasks, rules, git |
-| 3 | **PLAN17_DESIGN.md** | Plan 17 design (architecture) |
-| 4 | AGENT_PROMPT.md | Legacy v2 — উপেক্ষা করো |
+| 3 | **PLAN17_DESIGN.md** | Plan 17 architecture |
+| 4 | AGENT_PROMPT.md | Legacy v2 — উপেক্ষা |
 
 ---
 
@@ -71,7 +77,7 @@ git push origin main
 
 তারপর **`CONTINUE_PROMPT.txt`** আপডেট (Plan ✅ + পরের Plan) → আবার commit + push।
 
-**ক্রম:** live → check → code → verify → commit → push
+**ক্রম:** `live → check → code → verify → commit → push`
 
 ---
 
@@ -80,31 +86,36 @@ git push origin main
 | Plan | স্ট্যাটাস |
 |------|-----------|
 | Plan 14 | ✅ Scope reset + linking + history labels |
-| Plan 16 | ✅ Area-Text auto reflow |
+| Plan 16 | ✅ Area-Text auto reflow (`reflowScope`, `typographyReflow`) |
 | **Plan 17** | ⬜ **এখন implement** — Active Page Context |
 | Plan 18 | Stub — `CONTINUE_PROMPT.txt` |
 
-বিস্তারিত টাস্ক: **`CONTINUE_PROMPT.txt`** → section "Plan 17"
+বিস্তারিত: **`CONTINUE_PROMPT.txt`** → "Plan 17"
 
 ---
 
-## এজেন্টকে দেওয়ার এক-ব্লক প্রম্পট
+## Copy-paste প্রম্পট (অন্য এজেন্টকে দিন)
 
 ```
-Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git (branch main)
+Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+Branch: main
+
 git pull origin main
+রিপো root থেকে পড়ো (ক্রমে):
+  AGENT_README.md
+  WORKING_AGENT_PROMPT.txt
+  CONTINUE_PROMPT.txt
+  PLAN17_DESIGN.md
 
-রিপোর ফাইল পড়ো (ক্রমে):
-AGENT_README.md → WORKING_AGENT_PROMPT.txt → CONTINUE_PROMPT.txt → PLAN17_DESIGN.md
+বর্তমান কাজ: Plan 17 (CONTINUE_PROMPT.txt)। Plan 16 done — পুনরায় করো না।
 
-Plan 17 implement করো। Plan 16 আগে থেকেই main-এ আছে।
-npx tsc --noEmit && npm run build && node scripts/verify-editor.mjs
-git add -A && git commit && git push origin main
-CONTINUE_PROMPT.txt আপডেট (Plan 17 ✅) → আবার push।
+শেষে: tsc, build, verify-editor.mjs, verify-reflow.mjs
+git commit + git push origin main
+CONTINUE_PROMPT.txt আপডেট (Plan 17 ✅) → আবার push
 
-PAT/token ফাইলে বা চ্যাটে দেবে না। GitHub Extension / Credential Manager ব্যবহার করো।
+GitHub Extension / Credential Manager দিয়ে push করো — token ফাইলে/চ্যাটে নয়।
 ```
 
 ---
 
-*Handoff files live in repo root — always pull before starting.*
+*Handoff files are in repo root — always pull before starting.*
