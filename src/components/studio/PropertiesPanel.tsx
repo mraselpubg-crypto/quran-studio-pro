@@ -463,18 +463,16 @@ function ResetGroup() {
   const doReset = () => {
     setOpen(false);
     useReflowStore.setState({ buildProgress: { label: "রিসেট হচ্ছে…", pct: 50 } });
-    setTimeout(() => {
-      void resetScoped(scope, {
+    void (async () => {
+      await resetScoped(scope, {
         key: selection?.key,
         pageId: selection?.pageId ?? pages[0]?.id,
       });
       rebuild();
-      setTimeout(() => {
-        useOverridesStore.temporal.getState().clear();
-        useHistoryStore.getState().clear();
-        useReflowStore.setState({ buildProgress: null });
-      }, 50);
-    }, 50);
+      useOverridesStore.temporal.getState().clear();
+      useHistoryStore.getState().clear();
+      useReflowStore.setState({ buildProgress: null });
+    })();
   };
 
   return (
@@ -769,14 +767,8 @@ function CharacterPanel({
       applyTypography(selKey, { [k]: v } as never, scope, layerFromKey);
       return;
     }
-    void (async () => {
-      if (linked) {
-        const eff = await effectiveScope(scope, layerFromKey);
-        await patchScoped(selKey, { [k]: v } as never, eff);
-      } else {
-        patchLocal(selKey, { [k]: v } as never);
-      }
-    })();
+    // align, baseline, vScale, etc. — always this layer only (no linking fan-out)
+    patchLocal(selKey, { [k]: v } as never);
   };
 
 
