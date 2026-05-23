@@ -1,0 +1,93 @@
+## ===== WORKING AGENT — START HERE =====
+
+তুমি Working Agent। নিচের রিপো থেকে কাজ শুরু করো।
+
+**Repo:** https://github.com/mraselpubg-crypto/quran-studio-pro.git  
+**Branch:** main  
+**Local path:** c:\xampp\htdocs\q01\quran-studio-pro  
+**Dev server:** http://localhost:8080 (`npm run dev`)
+
+---
+
+## শুরুর কমান্ড (অবশ্যই এই ক্রমে)
+
+```powershell
+cd c:\xampp\htdocs\q01\quran-studio-pro
+git pull origin main
+npm install
+npm run dev
+```
+
+(পোর্ট 8080 দখল থাকলে আগের প্রসেস বন্ধ করো অথবা Vite অন্য পোর্টে চালাও।)
+
+---
+
+## মাস্টার নির্দেশ (এক লাইনে)
+
+**CONTINUE_PROMPT.txt** পড়ে **Plan 16 (Linked Area-Text Auto Reflow)** সম্পূর্ণ ইমপ্লিমেন্ট করো — live → check → code → verify → commit → push।
+
+---
+
+## তোমার কাজের তালিকা
+
+### 0. পড়ো
+- `CONTINUE_PROMPT.txt` — সম্পূর্ণ Plan 16, ডায়াগনোসিস, ফাইল ম্যাপ
+- মূল ফাইল: `src/lib/textReflow.ts`, `src/components/studio/FabricLines.tsx`, `src/state/overridesStore.ts`, `src/state/linkingStore.ts`, `src/components/studio/PropertiesPanel.tsx`
+
+### 1. ইমপ্লিমেন্ট করো (Plan 16 ধাপ অনুযায়ী)
+1. `src/lib/reflowScope.ts` — `effectiveReflowScope(scope, layer, linking)`
+2. `src/lib/textReflow.ts` — `reflowLayerText()` + আরবি split (`splitArabicWords`)
+3. `overridesStore.patchScoped` — typography (`fontPx`, `leading`, `tracking`, `hScale`) পর reflow ট্রিগার
+4. `FabricLines.tsx` — `getReflowBase` / `checkOverflow` / Enter — একই scope + linking লজিক
+5. `LinkingPanel` — Area Text হিন্ট (লিংক ON/OFF ব্যাখ্যা)
+6. `scripts/verify-reflow.mjs` — Playwright E2E (font বড় → পরের সারিতে টেক্সট)
+
+### 2. বাগ চেক
+- লিংক OFF → overflow অন্য সারিতে যাবে না
+- লিংক ON + scope=surah → typography reflow সূরা জুড়ে
+- ক্রস-পেজ → `CrossPageReflowDialog` (বিদ্যমান) রিইউজ
+- React hooks — early return এর আগে
+
+### 3. ভেরিফাই
+```powershell
+npx tsc --noEmit
+npm run build
+node scripts/verify-editor.mjs
+node scripts/verify-reflow.mjs
+```
+
+### 4. Git
+```powershell
+git add -A
+git commit -m "feat(Plan16): linked area-text auto reflow on typography and scope"
+git push origin main
+```
+
+### 5. হ্যান্ডঅফ আপডেট
+- `CONTINUE_PROMPT.txt`-এ Plan 16 ✅ চিহ্নিত করো
+- Plan 17 (যদি দরকার) লিখে আবার push করো
+
+---
+
+## গুরুত্বপূর্ণ নিয়ম
+
+| # | নিয়ম |
+|---|--------|
+| 1 | `text` ফিল্ড patchScoped দিয়ে fan-out করবে না — প্রতি সারিতে `reflowLayerText` |
+| 2 | `reflowStore.rebuild()` ≠ runtime text reflow — typography reflow শেষে rebuild লাগবে না |
+| 3 | `confirm()` নয় — `AlertDialog` |
+| 4 | ক্রম: **live → check → implement → tsc/build/playwright → commit → push** |
+| 5 | GitHub token চ্যাটে লিখবে না — `git push` লোকাল credential ব্যবহার করো |
+
+---
+
+## সফলতার মানদণ্ড (চেকলিস্ট)
+
+- [ ] Font Size বড় করলে (লিংক ON, scope=page/surah) ওভারফ্লো পরের লাইন/পেজে যায়
+- [ ] লিংক OFF — শুধু বর্তমান সারি
+- [ ] টাইপিং overflow editor scope মেনে চলে (আর সবসময় পুরো সূরা নয়)
+- [ ] tsc + build = 0 error
+- [ ] Playwright: console error নেই
+- [ ] main-এ push হয়েছে
+
+===== END WORKING AGENT PROMPT =====
