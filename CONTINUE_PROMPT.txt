@@ -1,74 +1,197 @@
-## Working Agent Handoff — Plan 12 Verified ✅
-
-### Completed (Plan 12) — feat(Plan12): cross-page reflow cascade, linking-aware scope gating, confirmation dialog
-
-Browser verify (Editor mode → Type tool):
-  ✓ Enter mid-line pushes trailing text to next row (same page → no dialog)
-  ✓ When overflow lands on next page → "লেআউট পরিবর্তন নিশ্চিত করুন?" dialog appears
-  ✓ "বাতিল" restores the original line text; "হ্যাঁ" applies the cascade
-  ✓ When overflow crosses a Surah boundary → dialog mentions "ও সূরায়"
-  ✓ Linking switch OFF for arabic + scope=surah → font/Y slider only affects current row
-  ✓ Linking switch ON for arabic + scope=surah → font/Y propagates across surah
-  ✓ Same applies for bangla and symbol layers independently
-  ✓ npx tsc --noEmit exits 0
-  ✓ npm run build exits 0
-
-Commit: feat(Plan12): cross-page reflow cascade, linking-aware scope gating, confirmation dialog
+## ===== WORKING AGENT HANDOFF — QURAN STUDIO PRO =====
+## Agent Type: Testing + Bug Fixing + Next Plan Maker
+## Date: 2026-05-23
 
 ---
 
-## Next Plan — Plan 13 (Pending User Approval)
+## 🔗 GITHUB REPO
 
-### Feature: Dynamic Paragraph Linking — Scope-Aware Tool Integration
-
-**Goal:** Make the paragraph linking system fully functional and context-aware based on active tool and selected layer.
-
-#### Requirements:
-
-1. **Scope-Aware Linking Indicator:**
-   - When a specific layer (Arabic / Bangla / Symbol) is selected AND the Linking switch is ON for that layer:
-     - Highlight/indicate visually in the Properties panel which scope (General / Page / Surah / Global) is currently active.
-     - The linking switch state should be visually reflected per-layer with a badge or glow effect.
-
-2. **Tool-Aware Linking Activation:**
-   - Selection Tool (Move / "V"): Linking switch affects position (dx, dy) propagation.
-   - Type Tool ("T"): Linking switch affects font/Y slider propagation.
-   - Both tools should obey the same per-layer ON/OFF state from `useLinkingStore`.
-
-3. **Cross-Layer Interaction Protection:**
-   - If Arabic linking is ON and Bangla linking is OFF:
-     - Arabic font/Y changes → propagate per scope
-     - Bangla font/Y changes → only affect the current selected row (no fan-out)
-   - Symbol layer should behave independently.
-
-4. **`effectiveScope()` function validation:**
-   - Verify that `effectiveScope()` in `PropertiesPanel.tsx` correctly reads the active layer from `selection.layerKind`.
-   - If `layerKind` is null/undefined (row-level selection), fall back to the user's current scope setting.
-   - Add a unit/manual test: select a row → switch to Arabic layer → turn linking ON → drag font slider → confirm all arabic rows in the surah update.
-
-5. **Visual Feedback in LinkingPanel:**
-   - Show the currently active scope next to each layer toggle in `LinkingPanel`.
-   - Example: "আরবি লিংকিং [সূরা]" with scope label.
-
-#### Files to modify:
-- `src/components/studio/PropertiesPanel.tsx` — `LinkingPanel` and `DSlider`
-- `src/state/linkingStore.ts` — verify layer-kind state shape
-- `src/state/editorStore.ts` — verify `selection.layerKind` is correctly set when clicking each sub-layer
-
-#### Verification:
-- npx tsc --noEmit exits 0
-- npm run build exits 0
-- Browser test: all 7 linking scenarios pass
-- Commit: feat(Plan13): scope-aware linking UI, tool-aware propagation, layer protection
-
----
-
-### GitHub Remote (for push):
-Remote URL: https://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@github.com/mraselpubg-crypto/quran-studio-pro.git
+Remote: https://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@github.com/mraselpubg-crypto/quran-studio-pro.git
 Branch: main
+Local Path: c:\xampp\htdocs\quranv4\QuranMakerV3
 
-### After completing Plan 13:
-1. Run: npx tsc --noEmit
-2. Run: npm run build
-3. Commit with: git commit -am "feat(Plan13): ..."
-4. Push: git push origin main
+## 📋 YOUR WORKFLOW
+
+1. git pull origin main          ← always start here
+2. Inspect & fix any bugs found
+3. npx tsc --noEmit              ← must exit 0 before commit
+4. npm run build                 ← must exit 0 before commit
+5. Visually verify in browser using Playwright (see BROWSER TESTING section)
+6. git add -A
+7. git commit -m "fix(...): description"
+8. git push (use token above)
+9. Write the NEXT PLAN in CONTINUE_PROMPT.txt and push again
+
+---
+
+## 🏗️ PROJECT ARCHITECTURE
+
+**Stack:** TanStack Start (React SSR) + Zustand + Fabric.js + Vite
+
+**Key Source Files:**
+- `src/components/studio/FabricLines.tsx`     — Canvas rows, key events (Enter/Delete/Type tool)
+- `src/components/studio/PropertiesPanel.tsx` — Right-side properties + linking panel
+- `src/components/studio/CanvasToolbar.tsx`   — Top toolbar (tools, scope, undo)
+- `src/components/studio/SubLayerPanel.tsx`   — Sub-layer (Arabic/Bangla/Symbol) movement
+- `src/state/overridesStore.ts`               — ALL font/position overrides + patchScoped + getScopedLayerKeys
+- `src/state/reflowStore.ts`                  — Page layout, line distribution
+- `src/state/editorStore.ts`                  — Active tool, scope, selection
+- `src/state/linkingStore.ts`                 — Per-layer linking toggles (arabic/bangla/symbol)
+- `src/state/historyStore.ts`                 — Undo/redo history
+- `src/lib/textReflow.ts`                     — reflowFrom / backFillFrom cascade
+- `src/hooks/useLargeChangeGuard.ts`          — Warning dialog for large scope changes
+
+**Key Constants (FabricLines.tsx):**
+- ARABIC_FONT_PX = 50
+- BANGLA_FONT_PX = 18
+- BASE_ARABIC_Y, BASE_BANGLA_Y, BASE_SYMBOL_Y
+
+---
+
+## ✅ COMPLETED PLANS (Plans 1–13)
+
+### Plan 12 ✅
+- Cross-page text reflow cascade with Enter/paste overflow detection
+- "লেআউট পরিবর্তন নিশ্চিত করুন?" confirmation dialog on cross-page overflow
+- "বাতিল" restores original text; "হ্যাঁ" applies cascade
+- Dialog mentions "ও সূরায়" when crossing Surah boundary
+
+### Plan 13 ✅
+- LinkingPanel now shows active scope as colored badge with glow per ON layer
+- DSlider derives target layer from slider key (arabicFontPx → "arabic" gate, etc.)
+- Violet Link2 indicator on slider label when edit will fan out
+- LocalFields (Move tool dx/dy) only propagates when all 3 layer switches are ON (whole-row)
+- effectiveScopeForRow() added to overridesStore.ts for row-level gate
+
+### Bug Fix ✅ (just done)
+- Fixed React Hooks violation in LocalFields: useLinkingStore() was called AFTER early return
+  which caused "Rendered more hooks than during the previous render" crash in editor panel
+
+---
+
+## ⚠️ KNOWN ISSUES TO CHECK FIRST
+
+Before making any new plan, visually check and fix these potential issues:
+
+1. **Type Tool (T) linking behavior** — When user selects a layer (e.g., Arabic) then switches to
+   Type Tool and edits fontPx via CharacterPanel → does it respect the linking switch?
+   CharacterPanel uses effectiveScope() but does NOT check useLinkingStore directly.
+   Fix needed: CharacterPanel's `set()` function should gate through effectiveScope + linking.
+
+2. **SubLayerPanel scope propagation** — SubLayerPanel's `apply()` function calls patchScoped(key, {dy}, scope)
+   directly when linked. But it should call effectiveScope() first (same as DSlider now does).
+   Check if this is consistent.
+
+3. **Reset All button scope** — The "সব রিসেট করুন" button in ResetGroup always resets ALL data
+   regardless of current scope. It should respect scope (general=current row, page=current page, etc.)
+
+4. **History panel** — Check if entries show up correctly after linking fan-out operations.
+   The history entry should mention "সূরা" or "পেজ" correctly in its label.
+
+---
+
+## 🌐 BROWSER TESTING (Playwright)
+
+Dev server runs at: http://localhost:8080
+The project uses `npm run dev` to start (already running as background task).
+
+Use this Playwright script template to take screenshots and check console errors:
+
+```js
+const { chromium } = require('playwright');
+const ARTIFACTS = 'C:\\Users\\Rasel\\.gemini\\antigravity\\brain\\<YOUR_CONV_ID>';
+
+async function verify() {
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = [];
+  page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+  
+  await page.goto('http://localhost:8080');
+  await page.waitForTimeout(4000);
+  await page.click('text=এডিটর');
+  await page.waitForTimeout(2000);
+  
+  // Click on a row
+  await page.mouse.click(600, 440);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: ARTIFACTS + '\\screen.png' });
+  
+  console.log(errors.length === 0 ? '✅ No errors' : errors);
+  await browser.close();
+}
+verify().catch(console.error);
+```
+
+---
+
+## 📝 NEXT PLAN TO IMPLEMENT (Plan 14)
+
+### Feature: Scope-Aware Reset + History Labels + CharacterPanel Linking Fix
+
+**Tasks:**
+
+1. **Fix CharacterPanel linking gate**
+   - File: `src/components/studio/PropertiesPanel.tsx` → `CharacterPanel` component
+   - Current: `set()` calls `effectiveScope(scope, layerFromKey)` directly
+   - Fix: Should read `useLinkingStore` state and only fan-out if the layer's link is ON
+   - Same pattern as DSlider's `layerForGate` + `linked` check
+
+2. **Fix SubLayerPanel scope gate**  
+   - File: `src/components/studio/PropertiesPanel.tsx` → `SubLayerPanel` component
+   - Current: `apply()` calls `patchScoped(key, {dy}, scope)` directly when `link[active]`
+   - Fix: Should call `await effectiveScope(scope, active)` first (consistent with DSlider)
+
+3. **Scope-aware Reset All**
+   - File: `src/components/studio/PropertiesPanel.tsx` → `ResetGroup` component
+   - Current: always calls `resetAll()` which clears ALL overrides globally
+   - New behavior:
+     - scope=general → reset only the currently selected row/layer key
+     - scope=page → reset all overrides on the current page
+     - scope=surah → reset all overrides for the current surah's pages
+     - scope=global → keep current behavior (reset everything)
+   - The `resetAll` action in overridesStore.ts may need a `resetScoped(scope, pageId?, surah?)` variant
+
+4. **History entry labels in Bengali**
+   - File: `src/state/historyStore.ts`
+   - When a history entry is for scope=surah, the `labelBn` should say e.g. "আরবি ফন্ট (সূরা)"
+   - When scope=page, say "আরবি ফন্ট (পেজ)"
+   - Check `captureHistory()` call sites and update label generation
+
+**Verification Checklist:**
+- ✓ CharacterPanel font size edit with Arabic linking ON → propagates across surah
+- ✓ CharacterPanel font size edit with Arabic linking OFF → only affects current row
+- ✓ SubLayerPanel Y offset with Arabic linking ON + scope=surah → fans out
+- ✓ Reset All with scope=page → only resets current page overrides
+- ✓ Reset All with scope=surah → only resets current surah overrides
+- ✓ Reset All with scope=global → resets everything (old behavior)
+- ✓ History entries show correct scope label in Bengali
+- ✓ npx tsc --noEmit exits 0
+- ✓ npm run build exits 0
+- ✓ Browser: no console errors in editor panel
+
+**Commit message:** feat(Plan14): scope-aware reset, CharacterPanel linking gate, history labels
+
+---
+
+## 🔑 IMPORTANT RULES
+
+1. NEVER use browser `confirm()` — use AlertDialog from @/components/ui/alert-dialog
+2. ALWAYS move ALL hooks before early returns in React components (hooks rules)
+3. ALWAYS run tsc --noEmit and check for 0 errors before committing
+4. ALWAYS use `effectiveScope()` (not raw `scope`) for fan-out decisions in DSlider/CharacterPanel
+5. NEVER fan out text content edits (the `text` field in LocalOverride)
+6. Use PowerShell `Select-String` instead of `grep` in terminal commands
+7. Use `Get-Content` instead of `cat` for reading files in PowerShell
+8. After ALL fixes and plan, push to GitHub with the token above
+
+---
+
+## 📸 SCREENSHOT ARTIFACTS DIR
+
+Save screenshots to:
+C:\Users\Rasel\.gemini\antigravity\brain\<YOUR_CONVERSATION_ID>
+
+Replace <YOUR_CONVERSATION_ID> with your actual conversation ID.
+
+===== END OF HANDOFF PROMPT =====
