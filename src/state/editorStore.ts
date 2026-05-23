@@ -90,6 +90,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   navigateToPageId: null,
   focusedRowKey: null,
   expandedSurahs: new Set<number>(),
+  pendingReflow: null,
+  setPendingReflow: (p) => set({ pendingReflow: p }),
 
   toggleSurah: (n) =>
     set((s) => {
