@@ -142,14 +142,10 @@ export function TopBar({ totalPages, totalAyat }: { totalPages: number; totalAya
             active={editMode}
             onClick={() => setEditMode(true)}
           />
-          {/* Auto-save indicator */}
-          {editMode && hasNewChanges && (
-            <span className="ml-2 flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-emerald-500/30">
-              <CheckCircle2 className="h-2.5 w-2.5" />
-              অটো-সেভ
-            </span>
-          )}
+          {/* Save button + auto-save (editor mode only) */}
+          {editMode && <SaveControl />}
         </div>
+
 
         {/* Right stats + actions */}
         <div className="flex items-center gap-2">
@@ -289,3 +285,89 @@ function StatBadge({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+// ── Save control: Save button + chevron dropdown with auto-save toggle ──
+import { ChevronDown, Save } from "lucide-react";
+import { useOverridesStore } from "@/state/overridesStore";
+import { Switch } from "@/components/ui/switch";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+function SaveControl() {
+  const [dirty, setDirty] = useState(false);
+  const [autoSave, setAutoSave] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("autoSave") === "true";
+  });
+
+  // Track dirty state on any override change
+  useEffect(() => {
+    const unsub = useOverridesStore.subscribe(() => setDirty(true));
+    return () => unsub();
+  }, []);
+
+  const doSave = () => {
+    // Zustand persist already writes on each change; this is a confirmation.
+    try {
+      localStorage.setItem("studio-save-ts", String(Date.now()));
+    } catch { /* ignore */ }
+    setDirty(false);
+    toast.success("✅ সেভ সম্পন্ন হয়েছে");
+  };
+
+  // Auto-save interval
+  useEffect(() => {
+    if (!autoSave) return;
+    const id = window.setInterval(doSave, 30000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSave]);
+
+  const toggleAuto = (v: boolean) => {
+    setAutoSave(v);
+    try { localStorage.setItem("autoSave", String(v)); } catch { /* ignore */ }
+    toast.info(v ? "🔄 অটো সেভ চালু" : "অটো সেভ বন্ধ");
+  };
+
+  return (
+    <div className="ml-2 flex items-center gap-1">
+      <button
+        onClick={doSave}
+        title="সেভ করুন"
+        className="relative flex items-center gap-1.5 rounded-l-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20 active:scale-95"
+      >
+        <Save className="h-3 w-3" />
+        সেভ
+        {dirty && (
+          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-yellow-400 ring-2 ring-neutral-950" />
+        )}
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            title="সেভ অপশন"
+            className="flex items-center rounded-r-lg border border-l-0 border-emerald-500/40 bg-emerald-500/10 px-1.5 py-1 text-emerald-300 hover:bg-emerald-500/20"
+          >
+            <ChevronDown className="h-3 w-3" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <div className="flex items-center justify-between px-2 py-1.5 text-xs">
+            <span className="flex items-center gap-1.5">🔄 অটো সেভ</span>
+            <Switch checked={autoSave} onCheckedChange={toggleAuto} />
+          </div>
+          <DropdownMenuItem onClick={doSave} className="text-xs">
+            📋 ম্যানুয়াল সেভ
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {autoSave && (
+        <span className="ml-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-semibold text-emerald-400 ring-1 ring-emerald-500/30">
+          অটো সেভ চালু
+        </span>
+      )}
+    </div>
+  );
+}
+

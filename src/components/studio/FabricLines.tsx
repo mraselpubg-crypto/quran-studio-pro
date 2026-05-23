@@ -150,15 +150,17 @@ const FabricRow = memo(function FabricRow({
   const rk = rowKey(pageId, i);
   const aLk = layerKey(pageId, i, "arabic");
   const bLk = layerKey(pageId, i, "bangla");
+  const sLk = layerKey(pageId, i, "symbol");
 
   const { gArabic, gBangla, gArabicY, gBanglaY, gSymbolY } = useGlobalLayoutValues();
 
-  // Fine-grained: only re-render when this row's three keys change
-  const { rOv, aOv, bOv } = useOverridesStore(
+  // Fine-grained: only re-render when this row's four keys change
+  const { rOv, aOv, bOv, sOv } = useOverridesStore(
     useShallow((s) => ({
       rOv: s.local[rk],
       aOv: s.local[aLk],
       bOv: s.local[bLk],
+      sOv: s.local[sLk],
     })),
   );
 
@@ -178,7 +180,7 @@ const FabricRow = memo(function FabricRow({
   const rowTy = rOv?.dy ?? 0;
   const rowSymbolPx = Math.round((rowFontPx / ARABIC_FONT_PX) * SYMBOL_FONT_PX);
 
-  const lkSy = layerKey(pageId, i, "symbol");
+  const lkSy = sLk;
   const isFlashing =
     focusedRowKey === rk ||
     focusedRowKey === aLk ||
@@ -199,6 +201,7 @@ const FabricRow = memo(function FabricRow({
   const isArabicEditing = isTypeTool && selectionKey === aLk && selectionPageId === pageId;
 
   // Bangla layer
+  const bDy = bOv?.dy ?? 0;
   const bFontPx = bOv?.fontPx ?? gBangla;
   const bLeading = bOv?.leading ?? 1.1;
   const bTracking = bOv?.tracking ?? 0;
@@ -208,6 +211,9 @@ const FabricRow = memo(function FabricRow({
   const bAlign = (bOv?.align ?? "justify") as React.CSSProperties["textAlign"];
   const bText = bOv?.text ?? slot.bangla ?? "";
   const isBanglaEditing = isTypeTool && selectionKey === bLk && selectionPageId === pageId;
+
+  // Symbol layer dy
+  const sDy = sOv?.dy ?? 0;
 
   return (
     <div
@@ -241,7 +247,7 @@ const FabricRow = memo(function FabricRow({
           top: 0,
           width,
           height: L.symH,
-          transform: `translateY(${gSymbolY}px)`,
+          transform: `translateY(${gSymbolY + sDy}px)`,
           overflow: "visible",
           zIndex: 20,
           pointerEvents: isTypeTool ? "auto" : "none",
@@ -389,7 +395,7 @@ const FabricRow = memo(function FabricRow({
           textAlign: bAlign,
           textAlignLast: bAlign === "justify" ? "justify" : undefined,
           whiteSpace: "normal",
-          transform: `translateY(${gBanglaY + bBaseline}px) scaleX(${bHScale}) scaleY(${bVScale})`,
+          transform: `translateY(${gBanglaY + bBaseline + bDy}px) scaleX(${bHScale}) scaleY(${bVScale})`,
           transformOrigin: "top left",
           zIndex: 10,
           pointerEvents: isTypeTool ? "auto" : "none",

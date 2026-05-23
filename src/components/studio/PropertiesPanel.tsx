@@ -1,12 +1,18 @@
 import { useState } from "react";
 import {
   AlignCenter, AlignJustify, AlignLeft, AlignRight, BookOpen, Clock, Globe,
-  RotateCcw, ScanLine, Type, Move
+  Link2, RotateCcw, ScanLine, Type, Move
 } from "lucide-react";
 import { useEditorStore, type SelectionScope } from "@/state/editorStore";
-import { useOverridesStore, type GlobalOverrides, type LocalOverride, patchScoped } from "@/state/overridesStore";
+import { useOverridesStore, type GlobalOverrides, type LocalOverride, layerKey, patchScoped } from "@/state/overridesStore";
 import { useHistoryStore, relativeTime } from "@/state/historyStore";
 import { useReflowStore } from "@/state/reflowStore";
+import { useLinkingStore } from "@/state/linkingStore";
+import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ARABIC_FONT_PX, BANGLA_FONT_PX } from "./FabricLines";
 
 
@@ -38,6 +44,16 @@ export function PropertiesPanel() {
       {/* ── Word Panel (per-word typography) ── */}
       {selection?.kind === "word" && (
         <WordPanel selKey={selection.key} pageId={selection.pageId} rowIndex={selection.rowIndex} wordIndex={selection.wordIndex ?? 0} scope={scope} />
+      )}
+
+      {/* ── Sub-Layer Movement Panel (per-row Symbol/Arabic/Bangla dy) ── */}
+      {selection && (selection.kind === "row" || selection.kind === "layer") && (
+        <SubLayerPanel pageId={selection.pageId} rowIndex={selection.rowIndex} scope={scope} />
+      )}
+
+      {/* ── Linking Panel ── */}
+      {selection && (selection.kind === "row" || selection.kind === "layer") && (
+        <LinkingPanel />
       )}
 
       {/* ── Character & Paragraph Panel (Type Tool only) ── */}
@@ -333,9 +349,33 @@ function LocalFields({ color }: { color: string }) {
   );
 }
 
+const SCOPE_RESET_TEXT: Record<SelectionScope, string> = {
+  general: "এই নির্বাচনের সেটিং রিসেট হবে।",
+  page: "এই পেজের সব সেটিং রিসেট হবে।",
+  surah: "এই সূরার সব সেটিং রিসেট হবে।",
+  global: "সম্পূর্ণ মুসহাফের সব সেটিং রিসেট হবে ⚠️",
+};
+
 function ResetGroup() {
   const resetAll = useOverridesStore((s) => s.resetAll);
   const rebuild = useReflowStore((s) => s.rebuild);
+  const scope = useEditorStore((s) => s.scope);
+  const [open, setOpen] = useState(false);
+
+  const doReset = () => {
+    setOpen(false);
+    useReflowStore.setState({ buildProgress: { label: "রিসেট হচ্ছে…", pct: 50 } });
+    setTimeout(() => {
+      resetAll();
+      rebuild();
+      setTimeout(() => {
+        useOverridesStore.temporal.getState().clear();
+        useHistoryStore.getState().clear();
+        useReflowStore.setState({ buildProgress: null });
+      }, 50);
+    }, 50);
+  };
+
   return (
     <div className="flex flex-col gap-2">
       <div className="grid grid-cols-2 gap-2">
@@ -349,28 +389,150 @@ function ResetGroup() {
         </button>
       </div>
       <button
-        onClick={() => {
-          if (!confirm("সব রিসেট করবেন? সব ডিফল্ট অবস্থায় ফিরবে।")) return;
-          
-          // 1. Show loading state visually
-          useReflowStore.setState({ buildProgress: { label: "রিসেট হচ্ছে…", pct: 50 } });
-          
-          // 2. Yield to browser so loading screen paints, then process
-          setTimeout(() => {
-            resetAll();
-            rebuild();
-            
-            // 3. Clear history and remove loading state after a tiny delay
-            setTimeout(() => {
-              useOverridesStore.temporal.getState().clear();
-              useHistoryStore.getState().clear();
-              useReflowStore.setState({ buildProgress: null });
-            }, 50);
-          }, 50);
-        }}
+        onClick={() => setOpen(true)}
         className="rounded border border-red-900/40 bg-red-900/10 py-1.5 text-[10px] font-bold text-red-400 hover:bg-red-900/20 mt-2">
         সব রিসেট করুন
       </button>
+
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>সব রিসেট করবেন?</AlertDialogTitle>
+            <AlertDialogDescription>
+              আপনি কি সব সেটিং রিসেট করতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।
+              <br />
+              <span className={scope === "global" ? "text-red-400 font-semibold" : "text-neutral-400"}>
+                {SCOPE_RESET_TEXT[scope]}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>বাতিল</AlertDialogCancel>
+            <AlertDialogAction onClick={doReset} className="bg-red-600 text-white hover:bg-red-700">
+              হ্যাঁ, রিসেট করুন
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SubLayerPanel — per-row Symbol/Arabic/Bengali independent Y-offset
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+type SubLayer = "symbol" | "arabic" | "bangla";
+const SUB_META: Record<SubLayer, { label: string; icon: string; color: string }> = {
+  symbol: { label: "প্রতীক", icon: "🔣", color: "#10b981" },
+  arabic: { label: "আরবি", icon: "ع", color: "#f59e0b" },
+  bangla: { label: "বাংলা", icon: "ক", color: "#06b6d4" },
+};
+
+function SubLayerPanel({ pageId, rowIndex, scope }: { pageId: string; rowIndex: number; scope: SelectionScope }) {
+  const [active, setActive] = useState<SubLayer>("arabic");
+  const link = useLinkingStore();
+  const key = layerKey(pageId, rowIndex, active);
+  const dy = useOverridesStore((s) => s.local[key]?.dy ?? 0);
+
+  const apply = (v: number | undefined) => {
+    const linked = link[active];
+    if (linked) {
+      void patchScoped(key, { dy: v }, scope);
+    } else {
+      useOverridesStore.getState().patchLocal(key, { dy: v });
+    }
+  };
+
+  const meta = SUB_META[active];
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+        <Move className="h-3 w-3" /> সাব-লেয়ার মুভমেন্ট
+      </div>
+
+      <div className="flex gap-1">
+        {(Object.keys(SUB_META) as SubLayer[]).map((k) => {
+          const m = SUB_META[k];
+          const isActive = active === k;
+          return (
+            <button
+              key={k}
+              onClick={() => setActive(k)}
+              className="flex-1 rounded px-2 py-1.5 text-[11px] font-semibold transition-all border"
+              style={isActive
+                ? { background: `${m.color}22`, borderColor: `${m.color}50`, color: m.color }
+                : { background: "#171717", borderColor: "#262626", color: "#737373" }}
+            >
+              <span className="mr-1">{m.icon}</span>{m.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-1">
+          <span className="text-[11px] font-medium text-neutral-400">
+            Y অফসেট ({meta.label})
+            {link[active] && <span className="ml-1 text-emerald-400" title="লিংক চালু">🔗</span>}
+          </span>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              value={dy}
+              onChange={(e) => apply(Number(e.target.value) || undefined)}
+              className="w-12 rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-right text-[11px] font-mono outline-none focus:border-amber-400"
+              style={{ color: dy !== 0 ? meta.color : "#737373" }}
+              step={1} min={-30} max={30}
+            />
+            {dy !== 0 && (
+              <button onClick={() => apply(undefined)} className="ml-1 text-neutral-600 hover:text-amber-400" title="Reset">
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+        <input
+          type="range" min={-30} max={30} step={1} value={dy}
+          onChange={(e) => apply(Number(e.target.value))}
+          className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+          style={{ accentColor: meta.color }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LinkingPanel — toggle scope-aware link for each sub-layer
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function LinkingPanel() {
+  const { arabic, bangla, symbol, setLink, setAll } = useLinkingStore();
+  const allOn = arabic && bangla && symbol;
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
+      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-violet-400">
+        <span className="flex items-center gap-1.5"><Link2 className="h-3 w-3" /> প্যারাগ্রাফ লিংকিং</span>
+        <button
+          onClick={() => setAll(!allOn)}
+          className="rounded border border-violet-500/40 bg-violet-500/10 px-2 py-0.5 text-[9px] font-bold text-violet-300 hover:bg-violet-500/20"
+        >
+          {allOn ? "সব আন-লিংক" : "সব লিংক"}
+        </button>
+      </div>
+
+      {([
+        ["arabic", "🔗 আরবি লিংক", arabic],
+        ["bangla", "🔗 বাংলা লিংক", bangla],
+        ["symbol", "🔗 প্রতীক লিংক", symbol],
+      ] as const).map(([k, label, on]) => (
+        <label key={k} className="flex items-center justify-between gap-2 rounded bg-neutral-900/40 px-2 py-1.5 cursor-pointer">
+          <span className="text-[11px] text-neutral-300">{label}</span>
+          <Switch checked={on} onCheckedChange={(v) => setLink(k, v)} />
+        </label>
+      ))}
     </div>
   );
 }
