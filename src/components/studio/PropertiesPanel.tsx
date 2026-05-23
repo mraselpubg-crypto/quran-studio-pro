@@ -304,13 +304,18 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
 
   const isOverridden = isLocalScope ? localValue !== undefined : stored !== undefined;
 
+  // Layer this slider semantically targets — drives the linking gate.
+  const layerForGate: LinkLayer | null = KEY_TO_LAYER[k] ?? (selection?.layerKind as LinkLayer | undefined) ?? null;
+  const linked = useLinkingStore((s) => (layerForGate ? s[layerForGate] : false));
+  const willFanOut = isLocalScope && linked;
+
   const applyValue = (v: number) => {
     setDragging(null);
     if (!isLocalScope) {
       setGlobal(k, v);
     } else {
       void (async () => {
-        const eff = await effectiveScope(scope, selection?.layerKind ?? null);
+        const eff = await effectiveScope(scope, layerForGate);
         void patchScoped(selKey!, { [localField!]: v } as never, eff);
       })();
     }
@@ -322,7 +327,7 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
       setGlobal(k, undefined);
     } else {
       void (async () => {
-        const eff = await effectiveScope(scope, selection?.layerKind ?? null);
+        const eff = await effectiveScope(scope, layerForGate);
         void patchScoped(selKey!, { [localField!]: undefined } as never, eff);
       })();
     }
@@ -331,7 +336,16 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-1">
-        <span className="text-[11px] font-medium text-neutral-400">{label}</span>
+        <span className="flex items-center gap-1 text-[11px] font-medium text-neutral-400">
+          {label}
+          {isLocalScope && layerForGate && (
+            <Link2
+              className="h-2.5 w-2.5"
+              style={{ color: willFanOut ? "#a78bfa" : "#404040" }}
+              aria-label={willFanOut ? "fan-out enabled" : "local only"}
+            />
+          )}
+        </span>
         <div className="flex items-center gap-1">
           <input type="number" value={display}
             onChange={(e) => applyValue(Number(e.target.value))}
@@ -344,6 +358,7 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
           )}
         </div>
       </div>
+
       <input type="range" min={min} max={max} value={display}
         onInput={(e) => setDragging(Number((e.target as HTMLInputElement).value))}
         onChange={(e) => applyValue(Number((e.target as HTMLInputElement).value))}
