@@ -1,28 +1,74 @@
-You are acting as the Working Agent (Cursor/Lovable). Your task is to implement a major architectural feature: **Cross-Page/Cross-Surah Text Reflow & Dynamic Linking Interaction**.
+## Working Agent Handoff — Plan 12 Verified ✅
 
-### Feature Requirements:
+### Completed (Plan 12) — feat(Plan12): cross-page reflow cascade, linking-aware scope gating, confirmation dialog
 
-**1. Dynamic Linking Application (Based on Scope & Tool):**
-When the user has a specific scope selected (e.g., General, Page, Surah, Global) and they interact with ANY of the 3 text layers (Arabic, Bangla, Symbol) using either the Selection Tool (Move) or the Type Tool:
-- If the **Linking Switch** is ON, the modification (movement, styling, typing) must automatically propagate and apply to all linked lines based on the selected scope. 
-- Ensure that the scope selection correctly filters which lines get affected dynamically as the user works.
+Browser verify (Editor mode → Type tool):
+  ✓ Enter mid-line pushes trailing text to next row (same page → no dialog)
+  ✓ When overflow lands on next page → "লেআউট পরিবর্তন নিশ্চিত করুন?" dialog appears
+  ✓ "বাতিল" restores the original line text; "হ্যাঁ" applies the cascade
+  ✓ When overflow crosses a Surah boundary → dialog mentions "ও সূরায়"
+  ✓ Linking switch OFF for arabic + scope=surah → font/Y slider only affects current row
+  ✓ Linking switch ON for arabic + scope=surah → font/Y propagates across surah
+  ✓ Same applies for bangla and symbol layers independently
+  ✓ npx tsc --noEmit exits 0
+  ✓ npm run build exits 0
 
-**2. Interactive Text Reflow (Line Breaking & Overflow):**
-This is the core complex feature. The user must be able to use the Type Tool to edit text dynamically with cascading reflow:
-- If the user places the cursor in the middle of a line (e.g., the last ayah of Surah Fatiha on Page 1) and presses `Enter`, the line must break, pushing the text after the cursor to the next line.
-- If they press `Enter` again, it should create an empty line, pushing the subsequent text further down.
-- **Cross-Page Cascading:** If the pushed text exceeds the maximum line capacity for the current page, the overflowing line(s) MUST automatically move to the **Next Page**.
-- **Cross-Surah Cascading:** If the overflow reaches a Surah boundary, it must correctly affect the subsequent Surah's layout.
+Commit: feat(Plan12): cross-page reflow cascade, linking-aware scope gating, confirmation dialog
 
-**3. Reflow Confirmation Dialog (CRITICAL UX):**
-Because cross-page and cross-surah reflows are destructive and can alter the layout of the entire book, you MUST implement a confirmation mechanism:
-- Whenever a user action (like pressing Enter or pasting text) causes a line to overflow and move to **another page** or affect **another Surah**, you must intercept this action and show a native React confirmation modal (e.g., using Radix UI `AlertDialog`).
-- **Dialog Message Example:** "এই পরিবর্তনটির ফলে কিছু টেক্সট পরবর্তী পেজ বা সূরায় চলে যাচ্ছে। আপনি কি নিশ্চিত যে আপনি লেআউট পরিবর্তন করতে চান?" (This change causes some text to overflow to the next page/surah. Are you sure you want to alter the layout?)
-- If the user confirms, apply the cascading reflow algorithm across the pages. If they cancel, abort the text insertion/line break.
+---
 
-### Implementation Guidelines:
-- You will likely need to heavily modify or utilize `src/state/reflowStore.ts` and `src/state/editorStore.ts` to support this page-to-page data movement algorithm.
-- Ensure the state updates correctly preserve the Symbol, Arabic, and Bangla alignment for the reflowed lines.
-- Write robust logic for the cascading effect so that pushing one line to Page 2 pushes the last line of Page 2 to Page 3, and so on, recursively if needed.
+## Next Plan — Plan 13 (Pending User Approval)
 
-Please review the current state management architecture and implement this feature comprehensively.
+### Feature: Dynamic Paragraph Linking — Scope-Aware Tool Integration
+
+**Goal:** Make the paragraph linking system fully functional and context-aware based on active tool and selected layer.
+
+#### Requirements:
+
+1. **Scope-Aware Linking Indicator:**
+   - When a specific layer (Arabic / Bangla / Symbol) is selected AND the Linking switch is ON for that layer:
+     - Highlight/indicate visually in the Properties panel which scope (General / Page / Surah / Global) is currently active.
+     - The linking switch state should be visually reflected per-layer with a badge or glow effect.
+
+2. **Tool-Aware Linking Activation:**
+   - Selection Tool (Move / "V"): Linking switch affects position (dx, dy) propagation.
+   - Type Tool ("T"): Linking switch affects font/Y slider propagation.
+   - Both tools should obey the same per-layer ON/OFF state from `useLinkingStore`.
+
+3. **Cross-Layer Interaction Protection:**
+   - If Arabic linking is ON and Bangla linking is OFF:
+     - Arabic font/Y changes → propagate per scope
+     - Bangla font/Y changes → only affect the current selected row (no fan-out)
+   - Symbol layer should behave independently.
+
+4. **`effectiveScope()` function validation:**
+   - Verify that `effectiveScope()` in `PropertiesPanel.tsx` correctly reads the active layer from `selection.layerKind`.
+   - If `layerKind` is null/undefined (row-level selection), fall back to the user's current scope setting.
+   - Add a unit/manual test: select a row → switch to Arabic layer → turn linking ON → drag font slider → confirm all arabic rows in the surah update.
+
+5. **Visual Feedback in LinkingPanel:**
+   - Show the currently active scope next to each layer toggle in `LinkingPanel`.
+   - Example: "আরবি লিংকিং [সূরা]" with scope label.
+
+#### Files to modify:
+- `src/components/studio/PropertiesPanel.tsx` — `LinkingPanel` and `DSlider`
+- `src/state/linkingStore.ts` — verify layer-kind state shape
+- `src/state/editorStore.ts` — verify `selection.layerKind` is correctly set when clicking each sub-layer
+
+#### Verification:
+- npx tsc --noEmit exits 0
+- npm run build exits 0
+- Browser test: all 7 linking scenarios pass
+- Commit: feat(Plan13): scope-aware linking UI, tool-aware propagation, layer protection
+
+---
+
+### GitHub Remote (for push):
+Remote URL: https://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@github.com/mraselpubg-crypto/quran-studio-pro.git
+Branch: main
+
+### After completing Plan 13:
+1. Run: npx tsc --noEmit
+2. Run: npm run build
+3. Commit with: git commit -am "feat(Plan13): ..."
+4. Push: git push origin main
