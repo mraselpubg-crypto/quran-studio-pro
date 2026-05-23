@@ -128,12 +128,14 @@ export function reflowFrom(opts: ReflowOptions): void {
         ? overflow + " " + existingText
         : overflow;
 
-      const { fits, overflow: newOverflow } = splitToFitCanvas(
+      const { fits, overflow: newOverflow } = splitToFitForLayer(
         combined,
         availableWidth,
         fontFamily,
         fontSize,
+        layer,
       );
+
 
       patchLocal(lk, { text: fits });
       overflow = newOverflow.trim();
@@ -231,12 +233,14 @@ export function backFillFrom(opts: BackFillOptions): void {
     }
 
     const combined = curText ? curText + " " + nextText : nextText;
-    const { fits, overflow } = splitToFitCanvas(
+    const { fits, overflow } = splitToFitForLayer(
       combined,
       availableWidth,
       fontFamily,
       fontSize,
+      layer,
     );
+
 
     // No extra word pulled — leading word of nextText doesn't fit. Stop.
     if (fits === curText) break;
