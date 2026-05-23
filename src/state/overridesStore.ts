@@ -228,6 +228,17 @@ export async function effectiveScope(
   return linked ? scope : "general";
 }
 
+/**
+ * Row-level (no specific sub-layer) gate: only fan out when ALL three
+ * link switches are ON — safe default for whole-row dx/dy edits.
+ */
+export async function effectiveScopeForRow(scope: SelectionScope): Promise<SelectionScope> {
+  const { useLinkingStore } = await import("./linkingStore");
+  const s = useLinkingStore.getState();
+  return s.arabic && s.bangla && s.symbol ? scope : "general";
+}
+
+
 function parseLayerKey(key: string): { kind: "layer" | "row" | "word"; pageId: string; rowIndex: number; layer?: string; wordIndex?: number } | null {
   const parts = key.split(":");
   if (parts[0] === "layer" && parts.length >= 4) {
