@@ -91,6 +91,14 @@ export function formatVal(v: unknown): string {
   return String(v);
 }
 
+/** Bengali scope suffix for history entry titles, e.g. "ফন্ট সাইজ (সূরা)". */
+export const SCOPE_SUFFIX_BN: Record<SelectionScope, string> = {
+  general: "",
+  page: " (পেজ)",
+  surah: " (সূরা)",
+  global: " (সকল)",
+};
+
 function relativeTime(ts: number): string {
   const diff = Math.floor((Date.now() - ts) / 1000);
   if (diff < 60) return `${diff} সেকেন্ড আগে`;
@@ -309,8 +317,9 @@ export function captureHistory(
     } else {
       const beforeStr = formatVal(before);
       const afterStr = formatVal(after);
-      labelBn = `${fieldLabelBn}: ${beforeStr} → ${afterStr}`;
-      label = `${field}: ${beforeStr} → ${afterStr}`;
+      const scopeSuffix = SCOPE_SUFFIX_BN[scope] ?? "";
+      labelBn = `${fieldLabelBn}${scopeSuffix}: ${beforeStr} → ${afterStr}`;
+      label = `${field}${scopeSuffix}: ${beforeStr} → ${afterStr}`;
     }
 
     let scopeLabel = "";

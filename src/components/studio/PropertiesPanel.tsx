@@ -427,16 +427,21 @@ const SCOPE_RESET_TEXT: Record<SelectionScope, string> = {
 };
 
 function ResetGroup() {
-  const resetAll = useOverridesStore((s) => s.resetAll);
+  const resetScoped = useOverridesStore((s) => s.resetScoped);
   const rebuild = useReflowStore((s) => s.rebuild);
+  const pages = useReflowStore((s) => s.pages);
   const scope = useEditorStore((s) => s.scope);
+  const selection = useEditorStore((s) => s.selection);
   const [open, setOpen] = useState(false);
 
   const doReset = () => {
     setOpen(false);
     useReflowStore.setState({ buildProgress: { label: "রিসেট হচ্ছে…", pct: 50 } });
     setTimeout(() => {
-      resetAll();
+      void resetScoped(scope, {
+        key: selection?.key,
+        pageId: selection?.pageId ?? pages[0]?.id,
+      });
       rebuild();
       setTimeout(() => {
         useOverridesStore.temporal.getState().clear();
@@ -506,12 +511,15 @@ function SubLayerPanel({ pageId, rowIndex, scope }: { pageId: string; rowIndex: 
   const dy = useOverridesStore((s) => s.local[key]?.dy ?? 0);
 
   const apply = (v: number | undefined) => {
-    const linked = link[active];
-    if (linked) {
-      void patchScoped(key, { dy: v }, scope);
-    } else {
-      useOverridesStore.getState().patchLocal(key, { dy: v });
-    }
+    void (async () => {
+      const linked = link[active];
+      if (linked) {
+        const eff = await effectiveScope(scope, active);
+        await patchScoped(key, { dy: v }, eff);
+      } else {
+        useOverridesStore.getState().patchLocal(key, { dy: v });
+      }
+    })();
   };
 
   const meta = SUB_META[active];
@@ -692,11 +700,18 @@ function CharacterPanel({ selKey }: { selKey: string }) {
   const align    = ov.align    ?? "justify";
 
   // selKey looks like "layer:<pageId>:<rowIdx>:<arabic|bangla|symbol>"
-  const layerFromKey = (selKey.split(":")[3] ?? null) as "arabic" | "bangla" | "symbol" | null;
+  const layerFromKey = (selKey.split(":")[3] ?? null) as LinkLayer | null;
+  const linked = useLinkingStore((s) => (layerFromKey ? s[layerFromKey] : false));
+  const willFanOut = scope !== "general" && linked;
+
   const set = (k: string, v: number | string) => {
     void (async () => {
-      const eff = await effectiveScope(scope, layerFromKey);
-      void patchScoped(selKey, { [k]: v } as never, eff);
+      if (linked) {
+        const eff = await effectiveScope(scope, layerFromKey);
+        await patchScoped(selKey, { [k]: v } as never, eff);
+      } else {
+        patchLocal(selKey, { [k]: v } as never);
+      }
     })();
   };
 
@@ -714,6 +729,13 @@ function CharacterPanel({ selKey }: { selKey: string }) {
       <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-400">
         <Type className="h-3 w-3" />
         ক্যারেক্টার
+        {layerFromKey && (
+          <Link2
+            className="h-2.5 w-2.5"
+            style={{ color: willFanOut ? "#a78bfa" : "#404040" }}
+            aria-label={willFanOut ? "fan-out enabled" : "local only"}
+          />
+        )}
       </div>
 
       {/* Row 1: Font size + Leading */}

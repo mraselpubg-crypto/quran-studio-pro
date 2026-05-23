@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { temporal } from "zundo";
 import { persist } from "zustand/middleware";
+import type { SelectionScope } from "./editorStore";
 
 export type GlobalOverrides = {
   arabicFontPx?: number;
@@ -57,6 +58,10 @@ type OverridesState = {
   patchLocal: (key: LocalKey, patch: Partial<Record<keyof LocalOverride, LocalOverride[keyof LocalOverride] | undefined>>) => void;
   clearLocal: (key: LocalKey) => void;
   resetAll: () => void;
+  resetScoped: (
+    scope: SelectionScope,
+    ctx: { key?: LocalKey; pageId?: string },
+  ) => Promise<void>;
 };
 
 type Persisted = Pick<OverridesState, "global" | "local">;
@@ -158,6 +163,42 @@ export const useOverridesStore = create<OverridesState>()(
 
         // Reset returns to MASTER_DEFAULTS, not empty {}
         resetAll: () => set({ global: { ...MASTER_DEFAULTS }, local: {} }),
+
+        resetScoped: async (scope, ctx) => {
+          if (scope === "global") {
+            get().resetAll();
+            return;
+          }
+          if (scope === "general") {
+            if (!ctx.key) return;
+            get().clearLocal(ctx.key);
+            return;
+          }
+          const pageId = ctx.pageId;
+          if (!pageId) return;
+
+          let targetPageIds: string[];
+          if (scope === "page") {
+            targetPageIds = [pageId];
+          } else if (scope === "surah") {
+            const { useReflowStore } = await import("./reflowStore");
+            const { distribution } = useReflowStore.getState();
+            const srcSurah = distribution.find((d) => d.pageId === pageId)?.surah ?? 0;
+            targetPageIds = distribution.filter((d) => d.surah === srcSurah).map((d) => d.pageId);
+          } else {
+            return;
+          }
+
+          const pageSet = new Set(targetPageIds);
+          set((s) => {
+            const next = { ...s.local };
+            for (const k of Object.keys(next)) {
+              const parts = k.split(":");
+              if (parts.length >= 2 && pageSet.has(parts[1]!)) delete next[k];
+            }
+            return { local: next };
+          });
+        },
       }),
       {
         limit: 100,
@@ -211,8 +252,6 @@ export const symbolKey = (
  * "row:vpage-3:5") and a SelectionScope, return ALL layerKeys the patch
  * should apply to. The "kind" (arabic/bangla/symbol) is preserved.
  */
-import type { SelectionScope } from "./editorStore";
-
 /**
  * Linking-aware scope gate.
  * If linking for the active sub-layer is OFF, force scope=general so the
