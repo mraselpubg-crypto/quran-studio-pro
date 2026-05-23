@@ -375,8 +375,11 @@ function LocalFields({ color }: { color: string }) {
   const selection = useEditorStore((s) => s.selection);
   const scope = useEditorStore((s) => s.scope);
   const local = useOverridesStore((s) => selection ? s.local[selection.key] : undefined);
-  if (!selection) return <div className="text-[10px] text-neutral-600 rounded bg-neutral-900/50 p-2 text-center">ট্রান্সফর্ম করার জন্য সারি নির্বাচন করুন</div>;
+  // ⚠️ All hooks MUST be called before any early return (React rules of hooks)
   const link = useLinkingStore();
+
+  if (!selection) return <div className="text-[10px] text-neutral-600 rounded bg-neutral-900/50 p-2 text-center">ট্রান্সফর্ম করার জন্য সারি নির্বাচন করুন</div>;
+
   const layerKind = selection.layerKind ?? null;
   const willFanOut =
     scope !== "general" &&
