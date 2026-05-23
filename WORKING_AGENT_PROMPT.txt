@@ -8,8 +8,10 @@ https://github.com/mraselpubg-crypto/quran-studio-pro.git
 **Branch:** main
 
 **Read these files in the repo (in order):**
-1. `CONTINUE_PROMPT.txt`  ← MASTER: status, Plan 17 tasks, rules, commands
-2. `WORKING_AGENT_PROMPT.txt`  ← this file
+1. `AGENT_README.md`       ← index (start here)
+2. `CONTINUE_PROMPT.txt`  ← MASTER: status, Plan 17 tasks, rules, commands
+3. `PLAN17_DESIGN.md`     ← Plan 17 design
+4. `WORKING_AGENT_PROMPT.txt`  ← this file
 
 **Do NOT rely on old chat context.** Always `git pull origin main` first.
 
