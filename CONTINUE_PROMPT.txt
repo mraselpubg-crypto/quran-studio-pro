@@ -1,6 +1,5 @@
 ## ===== WORKING AGENT HANDOFF — QURAN STUDIO PRO =====
 ## Date: 2026-05-23
-## Focus: Area-Text / Paragraph Linking + Auto Word-Wrap Reflow
 
 ---
 
@@ -9,212 +8,49 @@
 Remote: https://github.com/mraselpubg-crypto/quran-studio-pro.git
 Branch: main
 Local: c:\xampp\htdocs\q01\quran-studio-pro
-Dev: http://localhost:8080 (`npm run dev`)
+Dev: http://localhost:8080
 
-Workflow: **live → check → plan → implement → tsc + build + verify-editor.mjs → commit**
-
----
-
-## 🔍 DIAGNOSIS — কেন Auto Word-Wrap কাজ করছে না (চেক রেজাল্ট)
-
-### যা ইতিমধ্যে আছে ✅
-| জায়গা | আচরণ |
-|--------|--------|
-| `src/lib/textReflow.ts` | `reflowFrom`, `backFillFrom`, `planCascade` — Canvas দিয়ে শব্দ ভাগ করে লাইন/পেজে ক্যাসকেড |
-| `src/lib/canvasMeasure.ts` | `splitToFitCanvas` — maxWidth অনুযায়ী fits/overflow |
-| `FabricLines.tsx` → `InlineTextEditor` | **টাইপ টুলে লাইভ টাইপ** করলে `checkOverflow()` → overflow হলে `reflowFrom` |
-| `FabricLines.tsx` → Enter | `scope` (general/page/surah/global) + `planCascade` + `CrossPageReflowDialog` |
-| `PropertiesPanel` → LinkingPanel | প্যারাগ্রাফ লিংকিং (আরবি/বাংলা/প্রতীক) — **শুধু** `effectiveScope()` দিয়ে প্রপার্টি fan-out |
-| `quranLayout.ts` | প্রাথমিক পেজ বিল্ড时 verse → row প্যাকিং (rebuild); রানটাইম এডিট reflow নয় |
-
-### যা ভাঙা / অনুপস্থিত ❌
-| # | সমস্যা | প্রমাণ (ফাইল) |
-|---|--------|----------------|
-| 1 | **ফন্ট/টাইপোগ্রাফি পরিবর্তনে reflow হয় না** | `CharacterPanel`, `DSlider` → `patchScoped({ fontPx })` — কোনো `reflowFrom` কল নেই |
-| 2 | **লিংকিং সুইচ reflow-এ যুক্ত নয়** | `linkingStore` শুধু `overridesStore.effectiveScope()`-এ; `textReflow.ts` / `getReflowBase` লিংক পড়ে না |
-| 3 | **টাইপিং overflow সবসময় সূরা-ব্যাপী** | `getReflowBase()` সবসময় `surahPageIds` = পুরো সূরা; editor `scope=general/page` উপেক্ষা |
-| 4 | **লিংক OFF থাকলেও টাইপিং অন্য লাইনে যেতে পারে** | `checkOverflow` → `reflowFrom` লিংক চেক ছাড়াই চালায় |
-| 5 | **এডিট মোড ছাড়া ভিজুয়াল ওভারফ্লো** | আরবি ব্যান্ড `whiteSpace: "nowrap"` — টেক্সট ছড়িয়ে পড়ে, স্টোর `text` স্প্লিট হয় না |
-| 6 | **আরবি শব্দ ভাগ দুর্বল** | `splitToFitCanvas` শুধু `\s+`; কুরআন লাইনে স্পেস কম — `splitArabicWords` reflow-এ নেই |
-| 7 | **দুই ধরনের reflow গুলিয়ে ফেলা** | `reflowStore.rebuild()` = পেজ পুনর্বিন্যাস; `textReflow` = একই layer-এর row→row টেক্সট — আলাদা রাখতে হবে |
-
-### ব্যবহারকারীর প্রত্যাশা (সঠিক ব্যাখ্যা)
-> বাংলা/আরবি এডিট বা ফন্ট বড় করলে লেখা লাইন ছাড়িয়ে গেলে, **প্যারাগ্রাফ লিংকিং ON** + **স্কোপ সিলেক্টর** (সাধারণ/পেজ/সূরা/সকল) অনুযায়ী **সেই লেয়ার**-এর টেক্সট পরের লাইন/পেজে Auto Word-Wrap (InDesign Area Text এর মতো) হবে।  
-> **লিংক OFF** → শুধু বর্তমান সারি; ওভারফ্লো হলেও অন্য সারিতে স্টোর করা যাবে না (বা ওয়ার্নিং)।
+Workflow: git pull → npm install → npm run dev → check → implement → tsc → build → verify → commit → push
 
 ---
 
-## 📝 PLAN 16 — Linked Area-Text Auto Reflow (প্রধান কাজ)
+## ✅ Plan 16 — Linked Area-Text Auto Reflow (COMPLETE)
 
-### লক্ষ্য
-একটি **`reflowLayerText()`** সেবা যা:
-- লেয়ার (`arabic` | `bangla`) + স্কোপ + লিংকিং অনুযায়ী কোন row/page পর্যন্ত ক্যাসকেড হবে ঠিক করে
-- `fontPx`, `leading`, `tracking`, `hScale`, টেক্সট এডিট — সব পথে একই ইঞ্জিন ব্যবহার করে
-- ক্রস-পেজ/সূরা হলে বিদ্যমান `CrossPageReflowDialog` + `useLargeChangeGuard` রিইউজ করে
+- `effectiveReflowScope()` — `src/lib/reflowScope.ts`
+- `reflowLayerText()` — `src/lib/textReflow.ts`
+- `splitToFitForLayer()` — Arabic word-aware — `src/lib/canvasMeasure.ts`
+- `patchTypographyScoped()` + guard — `src/lib/typographyReflow.ts`, `src/hooks/useTypographyPatch.ts`
+- CharacterPanel + DSlider → typography reflow path
+- LinkingPanel → "এরিয়া টেক্সট লিংক" copy
+- Inline editor scope + link-off toast — `FabricLines.tsx`
+- `scripts/verify-reflow.mjs` E2E smoke
 
----
-
-### ধাপ ১ — `effectiveReflowScope()` (নতুন হেল্পার)
-
-**ফাইল:** `src/lib/reflowScope.ts` (নতুন) অথবা `src/state/overridesStore.ts` এক্সটেনশন
-
-```ts
-// ইনপুট: editor scope, layer, linkingStore
-// আউটপুট:
-type ReflowScopeResult = {
-  cascade: boolean;           // false = শুধু এক সারি, reflow বন্ধ
-  pageIds: string[];          // কোন পেজগুলোতে row walk
-  layer: "arabic" | "bangla";
-};
+Verify:
+```powershell
+npx tsc --noEmit
+npm run build
+node scripts/verify-editor.mjs
+node scripts/verify-reflow.mjs
 ```
 
-| লিংক (লেয়ার) | Editor scope | cascade | pageIds |
-|---------------|--------------|---------|---------|
-| OFF | যেকোনো | **false** | `[currentPage]` |
-| ON | general | true | `[currentPage]` — শুধু ওই পেজের পরের সারি |
-| ON | page | true | `[currentPage]` |
-| ON | surah | true | distribution-এ ওই সূরার সব pageId |
-| ON | global | true | সব pageId |
-
-> প্রতীক (`symbol`) লেয়ারে টেক্সট reflow নেই — স্কিপ।
-
 ---
 
-### ধাপ ২ — `reflowLayerText()` কোর ইঞ্জিন
+## 📝 Plan 17 — Active Page Context (NEXT)
 
-**ফাইল:** `src/lib/textReflow.ts` (এক্সটেন্ড)
+1. `editorStore.activePageId` + Workspace sync
+2. Reset page/surah uses active page (not `pages[0]`)
+3. History click → navigate + row flash
 
-```ts
-reflowLayerText(opts: {
-  pageId: string;
-  rowIndex: number;
-  layer: LayerKind;
-  reason: "text-edit" | "typography" | "paste";
-  fontFamily: string;
-  availableWidth: number;
-}): CascadePlan
-```
-
-**অ্যালগরিদম (প্রতি ট্রিগার সারি):**
-1. `getEffectiveText()` — override `text` না থাকলে `slot.arabic` / `slot.bangla`
-2. বর্তমান `fontPx`, `tracking`, `hScale` সহ `splitToFit` (আরবির জন্য ধাপ ৫)
-3. overflow থাকলে → `reflowFrom` (pageIds = effectiveReflowScope)
-4. ফিটের চেয়ে ছোট হলে → `backFillFrom`
-5. `planCascade` দিয়ে ক্রস-পেজ চেক → dialog/guard
-
-**মাপ:** `availableWidth = artboardWidth - 16` (যেমন `FabricLines` InlineTextEditor)
-
----
-
-### ধাপ ৩ — টাইপোগ্রাফি পরিবর্তনের পর reflow ট্রিগার
-
-**ফাইল:** `src/state/overridesStore.ts` → `patchScoped` শেষে
-
-```ts
-const TYPO_FIELDS = ["fontPx", "leading", "tracking", "hScale", "hScale"];
-// patchScoped সম্পন্ন হলে, প্রতিটি representativeKey-এর জন্য:
-if (TYPO_FIELDS.includes(mainField) && layer is arabic|bangla) {
-  queueMicrotask(() => reflowLayerText(...));
-}
-```
-
-**বিকল্প (পরিষ্কার):** `patchTypographyScoped()` — CharacterPanel / DSlider শুধু এটা কল করবে।
-
-**গুরুত্বপূর্ণ:** fan-out-এ ৫০+ সারি হলে `requestGuarded` + progress UI (বিদ্যমান `useLargeChangeGuard`).
-
----
-
-### ধাপ ৪ — `InlineTextEditor` স্কোপ সংশোধন
-
-**ফাইল:** `src/components/studio/FabricLines.tsx`
-
-- `getReflowBase()` → `effectiveReflowScope(useEditorStore.scope, layer, linking)` ব্যবহার
-- `checkOverflow` / `reflowFrom` — `cascade: false` হলে overflow ক্লিপ + টোস্ট/ওয়ার্ন (অন্য সারিতে ঢোকাবে না)
-- Enter-এর scope লজিক ও `effectiveReflowScope` এক সোর্সে মার্জ (ডুপ্লিকেট সরান)
-
----
-
-### ধাপ ৫ — আরবি শব্দ-স্তরের split
-
-**ফাইল:** `src/lib/canvasMeasure.ts` বা `textReflow.ts`
-
-```ts
-splitToFitForLayer(text, maxWidth, font, size, layer) {
-  if (layer === "arabic") return splitArabicToFit(...); // splitArabicWords + cumulative width
-  return splitToFitCanvas(...);
-}
-```
-
-এক শব্দ maxWidth ছাড়ালে: হাইফেন/গ্লিফ ব্রেক বা পুরো শব্দ পরের সারিতে (ডিজাইন সিদ্ধান্ত ডকুমেন্ট করুন)।
-
----
-
-### ধাপ ৬ — UI স্পষ্টতা (Paragraph / Area Text)
-
-**ফাইল:** `src/components/studio/PropertiesPanel.tsx` → `LinkingPanel`
-
-- লেবেল: **"এরিয়া টেক্সট লিংক"** (InDesign Area Text অনুরূপ)
-- লিংক ON + scope ব্যাজের পাশে ছোট টেক্সট: *"ওভারফ্লো এই স্কোপে রিফ্লো হবে"*
-- লিংক OFF: *"শুধু এই সারি — ওভারফ্লো অন্য লাইনে যাবে না"*
-
----
-
-### ধাপ ৭ — টেস্ট ও ভেরিফিকেশন
-
-**ইউনিট (`src/lib/textReflow.test.ts` — vitest যোগ করুন যদি নেই):**
-- লিংক ON, scope=surah, fontPx↑ → planCascade.affectedPages > 1
-- লিংক OFF → শুধু ১ row update
-
-**Playwright (`scripts/verify-reflow.mjs` — নতুন):**
-1. এডিটর → টাইপ টুল → আরবি সারি সিলেক্ট
-2. লিংক ON, scope=page
-3. Font Size বড় করুন → পরের সারিতে টেক্সট অংশ যাচাই (data attribute বা text content)
-4. console error = 0
-
-**ম্যানুয়াল চেকলিস্ট:**
-- [ ] টাইপ করে overflow → স্কোপ অনুযায়ী
-- [ ] CharacterPanel fontPx + লিংক ON → সূরা জুড়ে reflow
-- [ ] লিংক OFF → অন্য সারিতে টেক্সট যায় না
-- [ ] ক্রস-পেজ → নিশ্চিতকরণ ডায়ালগ
-- [ ] বাংলা লেয়ার আলাদা আরবি থেকে reflow
-
-**কমিট:** `feat(Plan16): linked area-text auto reflow on typography and scope`
-
----
-
-## 📝 PLAN 15 (ছোট — আগের হ্যান্ডঅফ, Plan 16-এর আগে বা পরে)
-
-- `editorStore.activePageId` + Workspace sync
-- Reset page/surah → activePageId ব্যবহার
-
----
-
-## 🏗️ ফাইল ম্যাপ (Plan 16 টাচ লিস্ট)
-
-| ফাইল | কাজ |
-|------|-----|
-| `src/lib/reflowScope.ts` | **নতুন** — effectiveReflowScope |
-| `src/lib/textReflow.ts` | reflowLayerText, Arabic split |
-| `src/lib/canvasMeasure.ts` | splitArabicToFit (ঐচ্ছিক) |
-| `src/state/overridesStore.ts` | typography patch → reflow hook |
-| `src/components/studio/FabricLines.tsx` | getReflowBase, checkOverflow, Enter unify |
-| `src/components/studio/PropertiesPanel.tsx` | LinkingPanel copy + reflow hint |
-| `src/hooks/useLargeChangeGuard.ts` | typography reflow guard |
-| `scripts/verify-reflow.mjs` | **নতুন** E2E |
-
----
-
-## ✅ COMPLETED (Plans 1–14)
-
-Plan 14: scope-aware reset, CharacterPanel linking gate, history labels — pushed `39545a5`
+Commit: `feat(Plan17): active page context for scoped reset and navigation`
 
 ---
 
 ## 🔑 RULES
 
-1. `text` ফিল্ড কখনো patchScoped fan-out নয় (বর্তমান নিয়ম) — কিন্তু **প্রতিটি সারিতে আলাদা** reflowLayerText চালানো যায়
-2. React hooks — early return এর আগে
-3. `confirm()` নয় — AlertDialog
-4. rebuild() ≠ textReflow — typography reflow শেষে rebuild লাগবে না (শুধু local text overrides)
+1. `text` never patchScoped fan-out
+2. reflowLayerText never calls rebuild()
+3. Hooks before early returns
+4. No confirm() — AlertDialog / CrossPageReflowDialog
+5. Symbol layer: no text reflow
 
 ===== END =====

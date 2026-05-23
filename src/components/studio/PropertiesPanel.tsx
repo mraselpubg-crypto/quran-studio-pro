@@ -14,6 +14,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ARABIC_FONT_PX, BANGLA_FONT_PX } from "./FabricLines";
+import { isTypographyField } from "@/lib/typographyReflow";
+import { useTypographyPatch } from "@/hooks/useTypographyPatch";
+import { ScopeImpactWarningDialog } from "./ScopeImpactWarningDialog";
 
 
 const SCOPE_META: Record<SelectionScope, { labelBn: string; color: string; icon: React.ElementType; desc: string }> = {
@@ -47,6 +50,7 @@ export function PropertiesPanel() {
   const isLayerSel = selection?.kind === "layer";
 
   const meta = SCOPE_META[scope];
+  const { applyTypography, dialogProps: typographyDialogProps } = useTypographyPatch();
 
   return (
     <div className="flex flex-col gap-4">
@@ -68,7 +72,7 @@ export function PropertiesPanel() {
 
       {/* ── Character & Paragraph Panel (Type Tool only) ── */}
       {isTypeTool && isLayerSel && selection && (
-        <CharacterPanel selKey={selection.key} />
+        <CharacterPanel selKey={selection.key} applyTypography={applyTypography} />
       )}
       {/* ── Tabs (Controls / History) ── */}
       <div className="flex items-center gap-2 border-b border-neutral-800 pb-2">
@@ -124,11 +128,12 @@ export function PropertiesPanel() {
       {/* ── Tab Content ── */}
       <div className="pt-2">
         {tab === "controls" ? (
-          <ControlsTab color={meta.color} scope={scope} />
+          <ControlsTab color={meta.color} scope={scope} applyTypography={applyTypography} />
         ) : (
           <HistoryTab />
         )}
       </div>
+      <ScopeImpactWarningDialog {...typographyDialogProps} />
     </div>
   );
 }
@@ -146,25 +151,35 @@ function TabBtn({ active, onClick, color, children }: { active: boolean; onClick
   );
 }
 
-function ControlsTab({ color, scope }: { color: string; scope: SelectionScope }) {
+type TypographyApply = ReturnType<typeof useTypographyPatch>["applyTypography"];
+
+function ControlsTab({
+  color,
+  scope,
+  applyTypography,
+}: {
+  color: string;
+  scope: SelectionScope;
+  applyTypography: TypographyApply;
+}) {
   return (
     <div className="flex flex-col gap-4">
       <Group title="আরবি ফন্ট" icon={Type} color={color}>
-        <DSlider k="arabicFontPx" localField="fontPx" label="সাইজ" min={20} max={80} fallback={ARABIC_FONT_PX} color={color} />
-        <DSlider k="arabicYOffset" label="Y অফসেট" min={-30} max={30} fallback={0} color={color} />
+        <DSlider k="arabicFontPx" localField="fontPx" label="সাইজ" min={20} max={80} fallback={ARABIC_FONT_PX} color={color} applyTypography={applyTypography} />
+        <DSlider k="arabicYOffset" label="Y অফসেট" min={-30} max={30} fallback={0} color={color} applyTypography={applyTypography} />
       </Group>
 
       <div className="h-px bg-neutral-800/50" />
 
       <Group title="বাংলা ফন্ট" icon={Type} color={color}>
-        <DSlider k="banglaFontPx" localField="fontPx" label="সাইজ" min={8} max={32} fallback={BANGLA_FONT_PX} color={color} />
-        <DSlider k="banglaYOffset" label="Y অফসেট" min={-30} max={30} fallback={0} color={color} />
+        <DSlider k="banglaFontPx" localField="fontPx" label="সাইজ" min={8} max={32} fallback={BANGLA_FONT_PX} color={color} applyTypography={applyTypography} />
+        <DSlider k="banglaYOffset" label="Y অফসেট" min={-30} max={30} fallback={0} color={color} applyTypography={applyTypography} />
       </Group>
 
       <div className="h-px bg-neutral-800/50" />
 
       <Group title="প্রতীক" icon={BookOpen} color={color}>
-        <DSlider k="symbolYOffset" label="Y অফসেট" min={-30} max={30} fallback={0} color={color} />
+        <DSlider k="symbolYOffset" label="Y অফসেট" min={-30} max={30} fallback={0} color={color} applyTypography={applyTypography} />
       </Group>
 
       <div className="h-px bg-neutral-800/50" />
@@ -273,7 +288,7 @@ function Group({ title, icon: Icon, color, children }: { title: string; icon: Re
   );
 }
 
-function DSlider({ k, localField, label, min, max, fallback, color }: {
+function DSlider({ k, localField, label, min, max, fallback, color, applyTypography }: {
   k: keyof GlobalOverrides;
   localField?: keyof LocalOverride;
   label: string;
@@ -281,6 +296,7 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
   max: number;
   fallback: number;
   color: string;
+  applyTypography: TypographyApply;
 }) {
   const stored = useOverridesStore((s) => s.global[k]);
   const setGlobal = useOverridesStore((s) => s.setGlobal);
@@ -309,10 +325,18 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
   const linked = useLinkingStore((s) => (layerForGate ? s[layerForGate] : false));
   const willFanOut = isLocalScope && linked;
 
+  const isTypoLocal =
+    isLocalScope &&
+    localField === "fontPx" &&
+    layerForGate !== null &&
+    (layerForGate === "arabic" || layerForGate === "bangla");
+
   const applyValue = (v: number) => {
     setDragging(null);
     if (!isLocalScope) {
       setGlobal(k, v);
+    } else if (isTypoLocal) {
+      applyTypography(selKey!, { fontPx: v }, scope, layerForGate);
     } else {
       void (async () => {
         const eff = await effectiveScope(scope, layerForGate);
@@ -325,6 +349,8 @@ function DSlider({ k, localField, label, min, max, fallback, color }: {
     setDragging(null);
     if (!isLocalScope) {
       setGlobal(k, undefined);
+    } else if (isTypoLocal) {
+      applyTypography(selKey!, { fontPx: undefined }, scope, layerForGate);
     } else {
       void (async () => {
         const eff = await effectiveScope(scope, layerForGate);
@@ -592,16 +618,36 @@ function LinkingPanel() {
   const scopeMeta = SCOPE_META[scope];
   const allOn = arabic && bangla && symbol;
 
+  const layerHints: Record<"arabic" | "bangla" | "symbol", { on: string; off: string }> = {
+    arabic: {
+      on: "টাইপোগ্রাফি বদলালে লিংকড সারিতে auto reflow",
+      off: "শুধু এই সারিতেই reflow; ওভারফ্লো clip হবে",
+    },
+    bangla: {
+      on: "টাইপোগ্রাফি বদলালে লিংকড সারিতে auto reflow",
+      off: "শুধু এই সারিতেই reflow; ওভারফ্লো clip হবে",
+    },
+    symbol: {
+      on: "প্রতীক লেয়ারে টেক্সট reflow নেই",
+      off: "প্রতীক লেয়ারে টেক্সট reflow নেই",
+    },
+  };
+
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
-      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-violet-400">
-        <span className="flex items-center gap-1.5"><Link2 className="h-3 w-3" /> প্যারাগ্রাফ লিংকিং</span>
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-violet-400">
+          <span className="flex items-center gap-1.5"><Link2 className="h-3 w-3" /> এরিয়া টেক্সট লিংক</span>
         <button
           onClick={() => setAll(!allOn)}
           className="rounded border border-violet-500/40 bg-violet-500/10 px-2 py-0.5 text-[9px] font-bold text-violet-300 hover:bg-violet-500/20"
         >
           {allOn ? "সব আন-লিংক" : "সব লিংক"}
         </button>
+        </div>
+        <p className="text-[9px] text-neutral-500 leading-snug">
+          InDesign Area Text: লিংক ON হলে স্কোপ অনুযায়ী ওভারফ্লো পরের সারি/পেজে যায়।
+        </p>
       </div>
 
       {([
@@ -609,30 +655,34 @@ function LinkingPanel() {
         ["bangla", "বাংলা লিংক", bangla],
         ["symbol", "প্রতীক লিংক", symbol],
       ] as const).map(([k, label, on]) => {
+        const hint = layerHints[k][on ? "on" : "off"];
 
         return (
           <label
             key={k}
-            className="flex items-center justify-between gap-2 rounded px-2 py-1.5 cursor-pointer transition-all"
+            className="flex flex-col gap-1 rounded px-2 py-1.5 cursor-pointer transition-all"
             style={
               on
                 ? { background: `${scopeMeta.color}10`, boxShadow: `inset 0 0 0 1px ${scopeMeta.color}55` }
                 : { background: "rgba(23,23,23,0.6)" }
             }
           >
-            <span className="flex items-center gap-1.5 text-[11px] text-neutral-300">
-              <span style={{ opacity: on ? 1 : 0.4 }}>{on ? "🔗" : "⛓️‍💥"}</span>
-              {label}
-              {on && (
-                <span
-                  className="ml-1 rounded px-1.5 py-0.5 text-[9px] font-bold"
-                  style={{ background: `${scopeMeta.color}22`, color: scopeMeta.color }}
-                >
-                  {scopeMeta.labelBn}
-                </span>
-              )}
+            <span className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-[11px] text-neutral-300">
+                <span style={{ opacity: on ? 1 : 0.4 }}>{on ? "🔗" : "⛓️‍💥"}</span>
+                {label}
+                {on && (
+                  <span
+                    className="ml-1 rounded px-1.5 py-0.5 text-[9px] font-bold"
+                    style={{ background: `${scopeMeta.color}22`, color: scopeMeta.color }}
+                  >
+                    {scopeMeta.labelBn}
+                  </span>
+                )}
+              </span>
+              <Switch checked={on} onCheckedChange={(v) => setLink(k, v)} />
             </span>
-            <Switch checked={on} onCheckedChange={(v) => setLink(k, v)} />
+            <span className="text-[9px] text-neutral-500 pl-5">{hint}</span>
           </label>
         );
       })}
@@ -678,7 +728,13 @@ function NumInput({
   );
 }
 
-function CharacterPanel({ selKey }: { selKey: string }) {
+function CharacterPanel({
+  selKey,
+  applyTypography,
+}: {
+  selKey: string;
+  applyTypography: TypographyApply;
+}) {
   const localMap = useOverridesStore((s) => s.local);
   const globalArabicFontPx = useOverridesStore((s) => s.global.arabicFontPx);
   const globalBanglaFontPx = useOverridesStore((s) => s.global.banglaFontPx);
@@ -705,6 +761,14 @@ function CharacterPanel({ selKey }: { selKey: string }) {
   const willFanOut = scope !== "general" && linked;
 
   const set = (k: string, v: number | string) => {
+    if (
+      isTypographyField(k) &&
+      layerFromKey &&
+      (layerFromKey === "arabic" || layerFromKey === "bangla")
+    ) {
+      applyTypography(selKey, { [k]: v } as never, scope, layerFromKey);
+      return;
+    }
     void (async () => {
       if (linked) {
         const eff = await effectiveScope(scope, layerFromKey);
@@ -799,7 +863,6 @@ function CharacterPanel({ selKey }: { selKey: string }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import { splitArabicWords } from "@/lib/wordSplit";
 import { useLargeChangeGuard } from "@/hooks/useLargeChangeGuard";
-import { ScopeImpactWarningDialog } from "./ScopeImpactWarningDialog";
 
 function WordPanel({
   selKey, pageId, rowIndex, wordIndex, scope,
