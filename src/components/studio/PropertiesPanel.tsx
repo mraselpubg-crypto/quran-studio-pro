@@ -35,6 +35,11 @@ export function PropertiesPanel() {
   return (
     <div className="flex flex-col gap-4">
 
+      {/* ── Word Panel (per-word typography) ── */}
+      {selection?.kind === "word" && (
+        <WordPanel selKey={selection.key} pageId={selection.pageId} rowIndex={selection.rowIndex} wordIndex={selection.wordIndex ?? 0} scope={scope} />
+      )}
+
       {/* ── Character & Paragraph Panel (Type Tool only) ── */}
       {isTypeTool && isLayerSel && selection && (
         <CharacterPanel selKey={selection.key} />
@@ -501,3 +506,130 @@ function CharacterPanel({ selKey }: { selKey: string }) {
     </div>
   );
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Word Panel — per-word typography (Plan 10)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import { splitArabicWords } from "@/lib/wordSplit";
+import { useLargeChangeGuard } from "@/hooks/useLargeChangeGuard";
+import { ScopeImpactWarningDialog } from "./ScopeImpactWarningDialog";
+
+function WordPanel({
+  selKey, pageId, rowIndex, wordIndex, scope,
+}: {
+  selKey: string; pageId: string; rowIndex: number; wordIndex: number; scope: SelectionScope;
+}) {
+  const ov = useOverridesStore((s) => s.local[selKey]);
+  const pages = useReflowStore((s) => s.pages);
+  const globalArabicFontPx = useOverridesStore((s) => s.global.arabicFontPx);
+  const { request, dialogProps } = useLargeChangeGuard();
+
+  const row = pages.find((p) => p.id === pageId)?.lines?.[rowIndex] as { arabic?: string } | undefined;
+  const words = splitArabicWords(row?.arabic ?? "");
+  const wordText = words[wordIndex] ?? "";
+
+  const fallbackFont = globalArabicFontPx ?? ARABIC_FONT_PX;
+  const fontPx   = ov?.fontPx   ?? fallbackFont;
+  const tracking = ov?.tracking ?? 0;
+  const color    = ov?.color    ?? "#111827";
+
+  const apply = (patch: Record<string, unknown>) => {
+    // Estimate affected count for surah/global to feed the guard dialog UI.
+    const estimate = scope === "general" ? 1 : scope === "page"
+      ? words.filter((w) => w === wordText).length
+      : 50; // rough hint — actual fan-out runs inside patchScoped
+    request({
+      scope,
+      estimatedRows: estimate,
+      label: "শব্দ স্টাইল প্রয়োগ হচ্ছে…",
+      action: () => patchScoped(selKey, patch as never, scope),
+    });
+  };
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+        <div className="flex items-center justify-between gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+          <span className="flex items-center gap-1.5"><Type className="h-3 w-3" /> নির্বাচিত শব্দ</span>
+          <span
+            className="font-normal text-amber-200 truncate max-w-[60%] text-[14px]"
+            style={{ fontFamily: "var(--font-arabic)" }}
+            dir="rtl"
+            lang="ar"
+          >
+            {wordText}
+          </span>
+        </div>
+
+        {/* Font size */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-neutral-400">ফন্ট সাইজ</span>
+            <div className="flex items-center gap-1">
+              <input type="number" value={fontPx} min={12} max={96} step={1}
+                onChange={(e) => apply({ fontPx: Number(e.target.value) })}
+                className="w-14 rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-right text-[11px] font-mono outline-none focus:border-amber-400" />
+              {ov?.fontPx !== undefined && (
+                <button onClick={() => apply({ fontPx: undefined })} className="text-neutral-600 hover:text-amber-400" title="Reset">
+                  <RotateCcw className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+          <input type="range" min={12} max={96} step={1} value={fontPx}
+            onChange={(e) => apply({ fontPx: Number(e.target.value) })}
+            className="w-full accent-amber-500" />
+        </div>
+
+        {/* Letter spacing */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-neutral-400">Letter Spacing</span>
+            <div className="flex items-center gap-1">
+              <input type="number" value={tracking} min={-2} max={8} step={0.5}
+                onChange={(e) => apply({ tracking: Number(e.target.value) })}
+                className="w-14 rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-right text-[11px] font-mono outline-none focus:border-amber-400" />
+              {ov?.tracking !== undefined && (
+                <button onClick={() => apply({ tracking: undefined })} className="text-neutral-600 hover:text-amber-400" title="Reset">
+                  <RotateCcw className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+          <input type="range" min={-2} max={8} step={0.5} value={tracking}
+            onChange={(e) => apply({ tracking: Number(e.target.value) })}
+            className="w-full accent-amber-500" />
+        </div>
+
+        {/* Color */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-neutral-400">রং</span>
+            {ov?.color !== undefined && (
+              <button onClick={() => apply({ color: undefined })} className="text-neutral-600 hover:text-amber-400" title="Reset">
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => apply({ color: e.target.value })}
+              className="h-7 w-10 cursor-pointer rounded border border-neutral-700 bg-neutral-900"
+            />
+            <input
+              type="text"
+              value={color}
+              onChange={(e) => apply({ color: e.target.value })}
+              className="flex-1 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] font-mono outline-none focus:border-amber-400"
+              placeholder="#111827"
+            />
+          </div>
+        </div>
+      </div>
+      <ScopeImpactWarningDialog {...dialogProps} />
+    </>
+  );
+}
+
