@@ -57,6 +57,8 @@ type EditorState = {
   focusedRowKey: string | null;
   /** Set of surah numbers currently expanded in the sidebar */
   expandedSurahs: Set<number>;
+  pendingReflow: PendingReflow | null;
+  setPendingReflow: (p: PendingReflow | null) => void;
   toggleSurah: (n: number) => void;
   expandSurah: (n: number) => void;
   setEditMode: (v: boolean) => void;
