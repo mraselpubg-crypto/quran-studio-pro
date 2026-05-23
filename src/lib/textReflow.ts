@@ -389,12 +389,14 @@ export function planCascade(opts: PlanCascadeOptions): CascadePlan {
       layerKeyFn,
     );
     const combined = existing ? carry + " " + existing : carry;
-    const { fits, overflow } = splitToFit(
+    const { fits, overflow } = splitToFitForLayer(
       combined,
       availableWidth,
       fontFamily,
       fontSize,
+      layer,
     );
+
 
     if (fits !== existing) {
       updates.push({ pageId: page.id, rowIndex: ri, layer, text: fits });
