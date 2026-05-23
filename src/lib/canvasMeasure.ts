@@ -113,6 +113,57 @@ export function splitToFitCanvas(
 }
 
 /**
+ * Layer-aware splitter. For "arabic", uses surface-word tokenisation
+ * (splitArabicWords) and a cumulative canvas-width walk. For any other
+ * layer, falls back to splitToFitCanvas (whitespace tokens).
+ *
+ * A single token that is wider than maxWidth is kept whole (no glyph break).
+ */
+export function splitToFitForLayer(
+  text: string,
+  maxWidth: number,
+  fontFamily: string,
+  fontSize: number,
+  layer: "arabic" | "bangla",
+): { fits: string; overflow: string } {
+  if (!text.trim()) return { fits: text, overflow: "" };
+  if (layer !== "arabic") {
+    return splitToFitCanvas(text, maxWidth, fontFamily, fontSize);
+  }
+
+  // Arabic path — splitArabicWords is whitespace-based today, but kept as
+  // a named seam so future Arabic-specific tokenisation slots in cleanly.
+  // Import inline to avoid a circular module ref.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { splitArabicWords } = require("./wordSplit") as typeof import("./wordSplit");
+  const words = splitArabicWords(text);
+  if (words.length === 0) return { fits: text, overflow: "" };
+  if (words.length === 1) {
+    // Single token — keep whole (oversize words don't glyph-break).
+    return { fits: text, overflow: "" };
+  }
+
+  if (measureTextWidthCanvas(text, fontFamily, fontSize) <= maxWidth) {
+    return { fits: text, overflow: "" };
+  }
+
+  let fits = "";
+  for (let i = 0; i < words.length; i++) {
+    const candidate = fits ? fits + " " + words[i] : words[i]!;
+    if (measureTextWidthCanvas(candidate, fontFamily, fontSize) <= maxWidth) {
+      fits = candidate;
+    } else {
+      if (fits === "") {
+        // First word already overflows — keep it whole.
+        return { fits: words[i]!, overflow: words.slice(i + 1).join(" ") };
+      }
+      return { fits, overflow: words.slice(i).join(" ") };
+    }
+  }
+  return { fits: text, overflow: "" };
+}
+
+/**
  * Invalidate all cached contexts (call after font size or family changes
  * that are not captured in the key, e.g. font-variant-numeric).
  */
