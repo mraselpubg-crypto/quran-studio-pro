@@ -395,7 +395,11 @@ function LocalFields({ color }: { color: string }) {
       {(["dx", "dy"] as const).map((f) => (
         <div key={f} className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase text-neutral-500" style={{ color }}>{f === "dx" ? "X অফসেট" : "Y অফসেট"}</span>
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-neutral-500" style={{ color }}>
+              {f === "dx" ? "X অফসেট" : "Y অফসেট"}
+              <Link2 className="h-2.5 w-2.5" style={{ color: willFanOut ? "#a78bfa" : "#404040" }} />
+            </span>
+
             {(local?.[f] ?? 0) !== 0 && (
               <button onClick={() => apply({ [f]: undefined })} className="text-neutral-600 hover:text-amber-400">
                 <RotateCcw className="h-2.5 w-2.5" />
