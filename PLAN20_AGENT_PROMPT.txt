@@ -16,6 +16,7 @@ Important:
 - Reuse the existing editor/reflow/history/reset pipeline.
 - Keep Arabic and Bangla movement independent unless link toggles are on.
 - Keep cross-page/surah spill on the existing confirm dialog path.
+- **CRITICAL UX RULE:** Panel, page, surah, or selection edits must apply instantly. Do **NOT** show a loading overlay for local/small edits. Loading screen is strictly for large cross-page/global rebuilds.
 
 Plan 20 goals:
 A. Paragraph-style inline reflow

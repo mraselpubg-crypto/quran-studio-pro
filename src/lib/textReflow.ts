@@ -313,6 +313,97 @@ export function backFillFrom(opts: BackFillOptions): void {
   }
 }
 
+export type CollapseBackwardOptions = BackFillOptions;
+
+export function collapseLineBreakBackward(opts: CollapseBackwardOptions): {
+  merged: boolean;
+  crossesPage: boolean;
+} {
+  const {
+    startPageId,
+    startRowIndex,
+    layer,
+    allPages,
+    localMap,
+    patchLocal,
+    layerKeyFn,
+    fontFamily,
+    fontSize,
+    availableWidth,
+    surahPageIds,
+  } = opts;
+
+  const targetPages = surahPageIds
+    ? allPages.filter((p) => surahPageIds.includes(p.id))
+    : allPages;
+  const startPageIdx = targetPages.findIndex((p) => p.id === startPageId);
+  if (startPageIdx === -1) return { merged: false, crossesPage: false };
+
+  const currentPage = targetPages[startPageIdx];
+  if (!currentPage) return { merged: false, crossesPage: false };
+
+  let prevPageIdx = startPageIdx;
+  let prevRowIdx = startRowIndex - 1;
+  if (prevRowIdx < 0) {
+    prevPageIdx = startPageIdx - 1;
+    if (prevPageIdx < 0) return { merged: false, crossesPage: false };
+    prevRowIdx = (targetPages[prevPageIdx]?.lines.length ?? 0) - 1;
+  }
+  if (prevRowIdx < 0) return { merged: false, crossesPage: false };
+
+  const prevPage = targetPages[prevPageIdx];
+  if (!prevPage) return { merged: false, crossesPage: false };
+
+  const prevText = getEffectiveText(prevPage.id, prevRowIdx, layer, prevPage.lines, localMap, layerKeyFn).trim();
+  const currentText = getEffectiveText(startPageId, startRowIndex, layer, currentPage.lines, localMap, layerKeyFn).trim();
+  if (!currentText) return { merged: false, crossesPage: prevPage.id !== startPageId };
+
+  const combined = prevText ? `${prevText} ${currentText}` : currentText;
+  const { fits, overflow } = splitToFitForLayer(
+    combined,
+    availableWidth,
+    fontFamily,
+    fontSize,
+    layer,
+  );
+
+  patchLocal(layerKeyFn(prevPage.id, prevRowIdx, layer), { text: fits });
+  patchLocal(layerKeyFn(startPageId, startRowIndex, layer), { text: "" });
+
+  const remainder = overflow.trim();
+  if (remainder) {
+    reflowFrom({
+      startPageId,
+      startRowIndex,
+      startOverflow: remainder,
+      layer,
+      allPages: targetPages,
+      localMap: useOverridesStore.getState().local,
+      patchLocal,
+      layerKeyFn,
+      fontFamily,
+      fontSize,
+      availableWidth,
+      surahPageIds,
+    });
+  } else {
+    backFillFrom({
+      startPageId,
+      startRowIndex,
+      layer,
+      allPages: targetPages,
+      localMap: useOverridesStore.getState().local,
+      patchLocal,
+      layerKeyFn,
+      fontFamily,
+      fontSize,
+      availableWidth,
+      surahPageIds,
+    });
+  }
+
+  return { merged: true, crossesPage: prevPage.id !== startPageId };
+}
 
 /**
  * Gets text before and after the cursor in a contenteditable element.

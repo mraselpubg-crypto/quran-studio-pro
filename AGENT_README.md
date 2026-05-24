@@ -1,7 +1,7 @@
 # Agent Instructions — Quran Studio Pro
 
-> **এই GitHub রিপোই এজেন্টের একমাত্র সোর্স।**  
-> চ্যাটের পুরনো প্রম্পট নয় — নিচের ফাইল পড়ে কাজ করো → verify → **এই রিপোতেই push** করো।  
+> **এই লোকাল রিপোই এজেন্টের একমাত্র সোর্স।**  
+> চ্যাটের পুরনো প্রম্পট নয় — নিচের ফাইল পড়ে কাজ করো → verify → **এই রিপোতেই সেভ** করো।  
 > **Plan শেষে:** `PLAN_COMPLETION_PROTOCOL.md` অনুযায়ী হ্যান্ডঅফ ফাইল আপডেট — তারপরই ✅।
 
 ---
@@ -10,36 +10,22 @@
 
 | | |
 |---|---|
-| **URL** | https://github.com/mraselpubg-crypto/quran-studio-pro.git |
-| **Branch** | `main` |
 | **Local path** | `c:\xampp\htdocs\q01\quran-studio-pro` |
 | **Dev** | http://localhost:8080 → `npm run dev` |
 
 ---
 
-## Git / GitHub Extension (Cursor / VS Code)
+## Local Execution Protocol
+**CRITICAL:** All work is entirely local on this machine. Do NOT run `git commit` or `git push`. 
 
-1. **Clone** (প্রথমবার):  
-   Command Palette → `Git: Clone` →  
-   `https://github.com/mraselpubg-crypto/quran-studio-pro.git`
-
-2. **Sign in:** GitHub Extension দিয়ে লগইন (Settings → Accounts → GitHub)।  
-   **PAT চ্যাটে, কোডে, বা handoff ফাইলে লিখবে না।**
-
-3. **প্রতি সেশন শুরু:** Source Control → **Pull**  
+1. **প্রতি সেশন শুরু:** 
    ```powershell
-   git pull origin main
+   npm install
+   npm run dev
    ```
 
-4. **কাজ শেষে:** stage → commit → **Push**  
-   ```powershell
-   git push origin main
-   ```
-
-5. **Remote URL** (token ছাড়া):  
-   `https://github.com/mraselpubg-crypto/quran-studio-pro.git`
-
-⚠️ Token চ্যাটে ফাঁস হলে GitHub → Settings → Developer settings → **Revoke** করো।
+2. **কাজ শেষে:** 
+   Just save files locally and verify using test scripts.
 
 ---
 

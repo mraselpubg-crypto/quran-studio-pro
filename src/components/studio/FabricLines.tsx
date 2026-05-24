@@ -3,7 +3,7 @@
 // Arabic shaping is handled by the browser's text engine (correct ligatures,
 // RTL bidi) and the text is strictly confined inside its template band.
 
-import { memo, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { TopSymbolLayer } from "./TopSymbolLayer";
@@ -22,6 +22,7 @@ import {
   reflowFrom,
   reflowFromAsync,
   backFillFrom,
+  collapseLineBreakBackward,
   measureTextWidth,
   getTextAroundCursor,
   planCascade,
@@ -170,6 +171,13 @@ const FabricRow = memo(function FabricRow({
   );
 
   const patchLocal = useOverridesStore((s) => s.patchLocal);
+  const patchScopedAsync = useCallback((key: string, patch: Partial<LocalOverride>, scope: "general" | "page" | "surah" | "global") => {
+    void (async () => {
+      const { effectiveScope, patchScoped } = await import("@/state/overridesStore");
+      const eff = await effectiveScope(scope, key.endsWith(":arabic") ? "arabic" : key.endsWith(":bangla") ? "bangla" : "symbol");
+      await patchScoped(key, patch, eff);
+    })();
+  }, []);
   const editMode = useEditorStore((s) => s.editMode);
   const activeTool = useEditorStore((s) => s.activeTool);
   const selectionKey = useEditorStore((s) => s.selection?.key);
@@ -180,7 +188,7 @@ const FabricRow = memo(function FabricRow({
 
   // Per-layer drag state (not React state — avoids re-render during drag)
   const dragRef = useRef<{
-    layer: "arabic" | "bangla";
+    layer: "arabic" | "bangla" | "symbol";
     startX: number;
     startY: number;
     initDx: number;
@@ -211,7 +219,9 @@ const FabricRow = memo(function FabricRow({
   const aTracking = aOv?.tracking ?? 0;
   const aVScale = (aOv?.vScale ?? 100) / 100;
   const aHScale = (aOv?.hScale ?? 100) / 100;
-  const aBaseline = aOv?.baseline ?? 0;
+  const aScaleFactor = aFontPx / (gArabic || ARABIC_FONT_PX);
+  const aBaseline = (aOv?.baseline ?? 0) * aScaleFactor;
+  const aLineHeight = Math.max(1, aLeading * aScaleFactor);
   const aAlign = (aOv?.align ?? "justify") as React.CSSProperties["textAlign"];
   const aText = aOv?.text ?? slot.arabic ?? "";
   const isArabicEditing = isTypeTool && selectionKey === aLk && selectionPageId === pageId;
@@ -224,13 +234,17 @@ const FabricRow = memo(function FabricRow({
   const bTracking = bOv?.tracking ?? 0;
   const bVScale = (bOv?.vScale ?? 100) / 100;
   const bHScale = (bOv?.hScale ?? 100) / 100;
-  const bBaseline = bOv?.baseline ?? 0;
+  const bScaleFactor = bFontPx / (gBangla || BANGLA_FONT_PX);
+  const bBaseline = (bOv?.baseline ?? 0) * bScaleFactor;
+  const bLineHeight = Math.max(1, bLeading * bScaleFactor);
   const bAlign = (bOv?.align ?? "justify") as React.CSSProperties["textAlign"];
   const bText = bOv?.text ?? slot.bangla ?? "";
   const isBanglaEditing = isTypeTool && selectionKey === bLk && selectionPageId === pageId;
 
-  // Symbol layer dy
+  const sDx = sOv?.dx ?? 0;
   const sDy = sOv?.dy ?? 0;
+  const sText = sOv?.text ?? slot.symbol ?? "";
+  const isSymbolEditing = isTypeTool && selectionKey === sLk && selectionPageId === pageId;
 
   return (
     <div
@@ -255,35 +269,128 @@ const FabricRow = memo(function FabricRow({
     >
       {/* Symbol strip */}
       <div
-        data-sel-kind={isTypeTool ? "layer" : undefined}
-        data-sel-key={isTypeTool ? lkSy : undefined}
+        data-sel-kind={editMode ? "layer" : undefined}
+        data-sel-key={editMode ? sLk : undefined}
         data-layer-kind="symbol"
+        onClick={
+          isTypeTool
+            ? (e) => {
+                e.stopPropagation();
+                useEditorStore.getState().setSelection({
+                  kind: "layer",
+                  key: sLk,
+                  pageId,
+                  rowIndex: i,
+                  layerKind: "symbol",
+                });
+              }
+            : undefined
+        }
+        onPointerDown={
+          isSelectTool
+            ? (e) => {
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                dragRef.current = {
+                  layer: "symbol",
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  initDx: sDx,
+                  initDy: sDy,
+                  pointerId: e.pointerId,
+                };
+                useEditorStore.getState().setSelection({
+                  kind: "layer", key: sLk, pageId, rowIndex: i, layerKind: "symbol",
+                });
+              }
+            : undefined
+        }
+        onPointerMove={
+          isSelectTool
+            ? (e) => {
+                const d = dragRef.current;
+                if (!d || d.layer !== "symbol") return;
+                const zoomScale = useEditorStore.getState().zoom || 1;
+                const dx = Math.round(d.initDx + (e.clientX - d.startX) / zoomScale);
+                const dy = Math.round(d.initDy + (e.clientY - d.startY) / zoomScale);
+                const scope = useEditorStore.getState().scope;
+                if (scope === "general") patchLocal(sLk, { dx, dy });
+                else patchScopedAsync(sLk, { dx, dy }, scope);
+              }
+            : undefined
+        }
+        onPointerUp={
+          isSelectTool
+            ? () => { dragRef.current = null; }
+            : undefined
+        }
         style={{
           position: "absolute",
           left: 0,
           top: 0,
           width,
           height: L.symH,
-          transform: `translateY(${gSymbolY + sDy}px)`,
+          transform: `translate(${sDx}px, ${gSymbolY + sDy}px)`,
           overflow: "visible",
           zIndex: 20,
-          pointerEvents: isTypeTool ? "auto" : "none",
-          cursor: isTypeTool ? "pointer" : "default",
+          pointerEvents: isTypeTool || isSelectTool ? "auto" : "none",
+          cursor: isSymbolEditing ? "text" : isSelectTool ? "grab" : isTypeTool ? "pointer" : "default",
         }}
       >
-        {(aText || slot.arabic) && (
-          <TopSymbolLayer
-            arabic={slot.arabic ?? aText}
-            arabicSpanRef={arabicSpanRef}
-            width={width}
-            height={L.symH}
-            fontFamily={arabicFamily}
-            fontSize={rowSymbolPx}
-            pageId={pageId}
-            rowIndex={i}
-            displayArabic={aText}
-            isEditing={isArabicEditing}
-          />
+        {isSymbolEditing ? (
+          <div
+            contentEditable
+            suppressContentEditableWarning
+            dir="ltr"
+            lang="ar"
+            spellCheck={false}
+            onBlur={(e) => patchLocal(sLk, { text: e.currentTarget.textContent ?? "" })}
+            onInput={(e) => patchLocal(sLk, { text: e.currentTarget.textContent ?? "" })}
+            onKeyDown={(e) => e.stopPropagation()}
+            style={{
+              display: "block",
+              width: "100%",
+              minHeight: "1em",
+              outline: "2px solid rgba(56,189,248,0.7)",
+              outlineOffset: "2px",
+              borderRadius: "2px",
+              background: "rgba(56,189,248,0.06)",
+              textAlign: "center",
+              fontSize: rowSymbolPx,
+              lineHeight: `${Math.max(12, L.symH)}px`,
+              color: "#ef4444",
+            }}
+          >
+            {sText}
+          </div>
+        ) : sOv?.text !== undefined ? (
+          <span
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "center",
+              fontSize: rowSymbolPx,
+              lineHeight: `${Math.max(12, L.symH)}px`,
+              color: "#ef4444",
+            }}
+          >
+            {sText}
+          </span>
+        ) : (
+          (aText || slot.arabic) && (
+            <TopSymbolLayer
+              arabic={slot.arabic ?? aText}
+              arabicSpanRef={arabicSpanRef}
+              width={width}
+              height={L.symH}
+              fontFamily={arabicFamily}
+              fontSize={rowSymbolPx}
+              pageId={pageId}
+              rowIndex={i}
+              displayArabic={aText}
+              isEditing={isArabicEditing}
+            />
+          )
         )}
       </div>
 
@@ -291,8 +398,8 @@ const FabricRow = memo(function FabricRow({
       <div
         dir="rtl"
         lang="ar"
-        data-sel-kind={isTypeTool ? "layer" : undefined}
-        data-sel-key={isTypeTool ? aLk : undefined}
+        data-sel-kind={editMode ? "layer" : undefined}
+        data-sel-key={editMode ? aLk : undefined}
         data-layer-kind="arabic"
         onClick={
           isTypeTool
@@ -333,9 +440,11 @@ const FabricRow = memo(function FabricRow({
                 const d = dragRef.current;
                 if (!d || d.layer !== "arabic") return;
                 const zoomScale = useEditorStore.getState().zoom || 1;
-                const dx = d.initDx + (e.clientX - d.startX) / zoomScale;
-                const dy = d.initDy + (e.clientY - d.startY) / zoomScale;
-                patchLocal(aLk, { dx: Math.round(dx), dy: Math.round(dy) });
+                const dx = Math.round(d.initDx + (e.clientX - d.startX) / zoomScale);
+                const dy = Math.round(d.initDy + (e.clientY - d.startY) / zoomScale);
+                const scope = useEditorStore.getState().scope;
+                if (scope === "general") patchLocal(aLk, { dx, dy });
+                else patchScopedAsync(aLk, { dx, dy }, scope);
               }
             : undefined
         }
@@ -357,7 +466,7 @@ const FabricRow = memo(function FabricRow({
           fontFamily: arabicFamily,
           fontSize: aFontPx,
           color: "#111827",
-          lineHeight: aLeading === 1 ? 1 : `${aLeading}px`,
+          lineHeight: aLineHeight,
           letterSpacing: aTracking,
           display: "block",
           paddingTop: Math.max(0, L.arH * 0.05),
@@ -410,8 +519,8 @@ const FabricRow = memo(function FabricRow({
       {/* Bangla band */}
       <div
         lang="bn"
-        data-sel-kind={isTypeTool ? "layer" : undefined}
-        data-sel-key={isTypeTool ? bLk : undefined}
+        data-sel-kind={editMode ? "layer" : undefined}
+        data-sel-key={editMode ? bLk : undefined}
         data-layer-kind="bangla"
         onClick={
           isTypeTool
@@ -452,9 +561,11 @@ const FabricRow = memo(function FabricRow({
                 const d = dragRef.current;
                 if (!d || d.layer !== "bangla") return;
                 const zoomScale = useEditorStore.getState().zoom || 1;
-                const dx = d.initDx + (e.clientX - d.startX) / zoomScale;
-                const dy = d.initDy + (e.clientY - d.startY) / zoomScale;
-                patchLocal(bLk, { dx: Math.round(dx), dy: Math.round(dy) });
+                const dx = Math.round(d.initDx + (e.clientX - d.startX) / zoomScale);
+                const dy = Math.round(d.initDy + (e.clientY - d.startY) / zoomScale);
+                const scope = useEditorStore.getState().scope;
+                if (scope === "general") patchLocal(bLk, { dx, dy });
+                else patchScopedAsync(bLk, { dx, dy }, scope);
               }
             : undefined
         }
@@ -476,7 +587,7 @@ const FabricRow = memo(function FabricRow({
           fontFamily: banglaFamily,
           fontSize: bFontPx,
           color: "#064e3b",
-          lineHeight: bLeading,
+          lineHeight: bLineHeight,
           letterSpacing: bTracking,
           overflow: "visible",
           display: "block",
@@ -756,7 +867,8 @@ function InlineTextEditor({
       // Snapshot pre-edit text so cancel can restore it
       const preEditText = lastSavedRef.current;
 
-      commit(beforeText);
+      useOverridesStore.getState().patchLocal(lk, { text: beforeText });
+      lastSavedRef.current = beforeText;
       el.textContent = beforeText;
 
       if (!afterText) return;
@@ -878,6 +990,55 @@ function InlineTextEditor({
       return;
     }
 
+    if (e.key === "Backspace") {
+      const el = ref.current;
+      if (!el) return;
+      const sel = window.getSelection();
+      if (!sel || !sel.isCollapsed) return;
+      const { before } = getTextAroundCursor(el);
+      if (before.length > 0) return;
+
+      const base = getReflowBase();
+      if (!base.cascade) {
+        toast.warning("লিংক বন্ধ — Backspace দিয়ে আগের সারি থেকে টেক্সট টানা যাবে না", { id: `link-off-backspace-${lk}` });
+        return;
+      }
+
+      e.preventDefault();
+      const collapse = () => {
+        const result = collapseLineBreakBackward({
+          startPageId: pageId,
+          startRowIndex: rowIndex,
+          layer,
+          allPages: base.allPages,
+          localMap: useOverridesStore.getState().local,
+          patchLocal: useOverridesStore.getState().patchLocal,
+          layerKeyFn: base.layerKeyFn,
+          fontFamily: base.fontFamily,
+          fontSize: base.fontSize,
+          availableWidth: base.availableWidth,
+          surahPageIds: base.scopedPageIds,
+        });
+        if (result.merged) {
+          const updated = useOverridesStore.getState().local[lk]?.text ?? "";
+          lastSavedRef.current = updated;
+          if (ref.current) ref.current.textContent = updated;
+        }
+      };
+
+      if (rowIndex === 0) {
+        useEditorStore.getState().setPendingReflow({
+          crossesPage: true,
+          crossesSurah: false,
+          affectedPages: 2,
+          confirm: collapse,
+        });
+        return;
+      }
+
+      collapse();
+      return;
+    }
 
     if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();

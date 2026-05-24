@@ -1,33 +1,31 @@
-## ===== AGENT ENTRY =====
+## ===== LOCAL AGENT ENTRY =====
 
-Repo: https://github.com/mraselpubg-crypto/quran-studio-pro.git
+Repo: Local Environment Only (No GitHub pushes required)
 Branch: main
 
 ## READ (order)
 1. AGENT_README.md
 2. CONTINUE_PROMPT.txt          ← CURRENT PLAN here
-3. PLAN_COMPLETION_PROTOCOL.md  ← Plan শেষে কী আপডেট করবে
-4. PLAN19_DESIGN.md (if Plan 19)
+3. PLAN20_DESIGN.md
+4. PLAN21_DESIGN.md             ← New InDesign-like editing plan
 
 ## START
-git pull origin main
 npm install
 npm run dev
 
 ## CURRENT JOB
-See CONTINUE_PROMPT.txt → "CURRENT PLAN" section.
-(Now: Plan 19 — Collapsible Surah Navigation Sidebar & Search)
+All requested local plans are implemented.
+See CONTINUE_PROMPT.txt for completed status.
 
-## NEXT QUEUED PLAN
-Plan 20 — Paragraph reflow, independent layers, reset/history fixes.
-Read PLAN20_DESIGN.md after Plan 19 is complete.
+## COMPLETED LOCAL PLANS
+- Plan 20 — Paragraph reflow, independent layers, reset/history fixes.
+- Plan 21 — InDesign-like Layer Editing & Precise Alignment.
+
 ## WHEN YOU FINISH A PLAN (mandatory)
 1. tsc + build + verify scripts
-2. git commit + push (feature)
-3. Update CONTINUE_PROMPT.txt (✅ + next plan)
-4. Update AGENT_README.md + this file
-5. git commit -m "docs: handoff after PlanXX" + push
+2. Update CONTINUE_PROMPT.txt (✅ + next plan)
+3. Update AGENT_README.md + this file
 
-Do NOT stop at chat "done" — update repo files for next agent.
+**CRITICAL RULE:** Do NOT run `git commit` or `git push`. All execution and progress are tracked entirely locally on this machine. Stop updating GitHub.
 
 ===== END =====

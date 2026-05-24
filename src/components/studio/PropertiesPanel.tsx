@@ -499,6 +499,7 @@ function ResetGroup() {
           pageId: getContextPageId(),
         });
       }
+      useEditorStore.getState().setPendingReflow(null);
       rebuild();
       useOverridesStore.temporal.getState().clear();
       useHistoryStore.getState().clear();

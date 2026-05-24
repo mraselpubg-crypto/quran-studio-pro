@@ -1,0 +1,25 @@
+You are the working agent for Quran Studio Pro — Plan 21.
+
+Local path: `c:\xampp\htdocs\q01\quran-studio-pro`
+
+Read in this order:
+1. AGENT_README.md
+2. CONTINUE_PROMPT.txt
+3. PLAN21_DESIGN.md
+4. WORKING_AGENT_PROMPT.txt
+
+Important Rules:
+- Implement ONLY Plan 21.
+- All execution is 100% local. Do NOT run `git commit` or `git push`.
+- Reuse existing scoped patching logic where possible.
+
+Plan 21 Goals:
+1. Universal InDesign-like Layer Editing: Arabic, Bengali, and Top Symbol layers must be independently selectable and fully editable on every line.
+2. Exact Alignment Scaling: Adjusting any line setting (e.g. font size, leading) must scale proportionally while strictly maintaining the Reset State baseline.
+3. Scope Impact Check: Ensure all edits trigger correctly for the currently active Scope (General, Page, Surah, Global), causing responsive/instant layout updates.
+
+Verification:
+- Run `npm run build` and `npx tsc --noEmit` and ensure NO errors.
+- Test in the browser at http://localhost:8080/ by selecting individual layers and typing/deleting, then changing line settings and observing alignment.
+
+Once verified locally, update `CONTINUE_PROMPT.txt`, `AGENT_README.md`, and `WORKING_AGENT_PROMPT.txt` to mark Plan 21 as complete.

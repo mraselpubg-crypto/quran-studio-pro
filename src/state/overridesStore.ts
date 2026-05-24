@@ -113,6 +113,10 @@ export function resetToSessionBaseline() {
   }
 }
 
+export function clearSessionBaseline() {
+  _sessionBaseline = null;
+}
+
 /* Batch-merge consecutive same-field global changes within 400ms for clean undo steps */
 let _lastGlobalField: string | null = null;
 let _lastGlobalTs = 0;

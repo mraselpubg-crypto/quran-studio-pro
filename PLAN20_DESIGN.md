@@ -6,6 +6,11 @@ The editor already has a scoped reflow engine, linked-layer overrides, and sessi
 
 This plan keeps the existing architecture and extends the current reflow / history / reset pipeline instead of introducing a second editor model.
 
+## ⚠️ CRITICAL ACCEPTANCE NOTE (UX Rules)
+- **Instant Rendering:** Any panel-based, page-based, Surah-based, or selection-based changes **must apply instantly** via local/responsive rendering.
+- **No Local Loading:** Smaller/local edits (single page or local overrides) **must NOT show any separate loading overlay or block the UI**.
+- **Global Loading Only:** A loading screen/progress bar is strictly reserved for large, cross-page cascades or global mus'haf-wide reflows to keep the editing experience highly responsive.
+
 ## Recommended split
 
 ### 20A — Core reflow semantics
